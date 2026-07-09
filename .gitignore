@@ -4,3 +4,5 @@ build/
 *.o
 *.obj
 .vscode/
+docs/distributed_design.md
+docs/systems_reflection.md
