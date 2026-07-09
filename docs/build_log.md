@@ -19,3 +19,23 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 **Problem:** Need to finalize strict architectural choices to meet both O(1) performance and scaling requirements without memory exhaustion. Also needed to fix mermaid diagram syntax errors that prevented rendering.
 **What I Tried:** Wrote crawler_design.md defining 7 core constraints: LinkedList for Frontier, HashMap for Seen Store, SQL + .dat file for Page Storage, libcurl Downloader, string::find() Link Extractor, excluded robots.txt, and strict normalization. Fixed Mermaid syntax for subgraphs.
 **Outcome:** Successfully finalized crawler_design.md with all required diagrams functioning correctly and API definitions matching Project 03 specifications.
+
+---
+
+## Session 2
+**Date:** July 9
+**Duration:** 30 minutes
+**Goal:** Implement the URL Frontier component.
+**Problem:** Need to implement a fast, O(1) FIFO queue for URLs and depth tracking without using STL containers.
+**What I Tried:** Created `URLFrontier.h` and `URLFrontier.cpp` to wrap the custom `LinkedList<FrontierEntry>` from Project 01. Implemented `push()`, `pop()`, `isEmpty()`, and `size()` in small, incremental steps.
+**Outcome:** URL Frontier is fully implemented. It provides O(1) insertions to the tail and O(1) removals from the head, successfully avoiding any array-shifting bottlenecks.
+
+---
+
+## Session 3
+**Date:** July 9
+**Duration:** 20 minutes
+**Goal:** Implement the Seen URL Store component.
+**Problem:** Need O(1) duplicate URL detection to prevent the crawler from hitting infinite loops or saving the same page multiple times.
+**What I Tried:** Created `SeenURLStore.h` and `SeenURLStore.cpp`. Initialized the custom `HashMap<std::string, bool>` from Project 01. Implemented `markSeen()` by calling `map.put(url, true)`, and implemented `isSeen()` by leveraging `map.contains(url)`.
+**Outcome:** Successfully built an O(1) duplicate filtering system in RAM that sits perfectly in front of our database layer.
