@@ -3,7 +3,7 @@
 
 #include <string>
 #include <fstream>
-// #include <sqlite3.h> // We will uncomment this when we link SQLite!
+#include "sqlite3.h"
 
 // Hybrid Storage: SQL Database (crawler_metadata) + Append-Only File (crawler_archive.dat)
 class PageStorage {
@@ -11,7 +11,7 @@ private:
     std::string archiveFilePath;
     std::string dbFilePath;
     std::ofstream archiveFile;
-    // sqlite3* db; // Pointer to our SQLite connection
+    sqlite3* db; // Pointer to our SQLite connection
 
     // Helper method to setup the SQLite database table
     void initDatabase();
