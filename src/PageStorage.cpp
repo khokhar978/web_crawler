@@ -12,8 +12,14 @@ PageStorage::PageStorage(const std::string& archivePath, const std::string& dbPa
         std::cerr << "Failed to open archive file: " << archiveFilePath << std::endl;
     }
 
-    // TODO: Connect to SQLite database
-    // TODO: Call initDatabase() to ensure the crawler_metadata table exists
+    // 2. Connect to SQLite database
+    int rc = sqlite3_open(dbFilePath.c_str(), &db);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to open SQLite database: " << sqlite3_errmsg(db) << std::endl;
+    } else {
+        // 3. Ensure the metadata table exists
+        initDatabase();
+    }
 }
 
 PageStorage::~PageStorage() {
@@ -22,11 +28,29 @@ PageStorage::~PageStorage() {
         archiveFile.close();
     }
     
-    // TODO: Close the SQLite database connection
+    // 2. Close the SQLite database connection
+    if (db != nullptr) {
+        sqlite3_close(db);
+    }
 }
 
 void PageStorage::initDatabase() {
-    // TODO: Execute CREATE TABLE IF NOT EXISTS crawler_metadata ...
+    // Execute CREATE TABLE IF NOT EXISTS crawler_metadata
+    const char* sql = 
+        "CREATE TABLE IF NOT EXISTS crawler_metadata ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "url TEXT UNIQUE, "
+        "depth INTEGER, "
+        "offset INTEGER, "
+        "length INTEGER);";
+        
+    char* errMsg = nullptr;
+    int rc = sqlite3_exec(db, sql, nullptr, nullptr, &errMsg);
+    
+    if (rc != SQLITE_OK) {
+        std::cerr << "SQL Error during initDatabase: " << errMsg << std::endl;
+        sqlite3_free(errMsg);
+    }
 }
 
 void PageStorage::storePage(const std::string& url, const std::string& html, int depth) {
@@ -46,19 +70,88 @@ void PageStorage::storePage(const std::string& url, const std::string& html, int
     archiveFile.flush();
     
     // 3. Insert the url, depth, offset, and html.length() into the SQLite database
-    // TODO: We will implement the SQLite INSERT query here next!
+    const char* sql = "INSERT INTO crawler_metadata (url, depth, offset, length) VALUES (?, ?, ?, ?);";
+    sqlite3_stmt* stmt;
+    
+    // Prepare the SQL statement
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare insert statement: " << sqlite3_errmsg(db) << std::endl;
+        return;
+    }
+    
+    // Bind the parameters safely to prevent SQL injection
+    sqlite3_bind_text(stmt, 1, url.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 2, depth);
+    sqlite3_bind_int64(stmt, 3, offset);
+    sqlite3_bind_int64(stmt, 4, html.length());
+    
+    // Execute the query
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        std::cerr << "Failed to insert page metadata: " << sqlite3_errmsg(db) << std::endl;
+    }
+    
+    // Clean up the prepared statement
+    sqlite3_finalize(stmt);
 }
 
 std::string PageStorage::getPage(const std::string& url) {
-    // TODO: 1. Query SQLite for the offset and length using the URL
-    // TODO: 2. Seek to that offset in the archive file
-    // TODO: 3. Read 'length' bytes and return the string
-    return ""; // Placeholder
+    // 1. Query SQLite for the offset and length using the URL
+    const char* sql = "SELECT offset, length FROM crawler_metadata WHERE url = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare select statement: " << sqlite3_errmsg(db) << std::endl;
+        return "";
+    }
+    
+    sqlite3_bind_text(stmt, 1, url.c_str(), -1, SQLITE_TRANSIENT);
+    
+    std::string html = "";
+    
+    // If the query finds a matching row
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        long offset = sqlite3_column_int64(stmt, 0);
+        long length = sqlite3_column_int64(stmt, 1);
+        
+        // 2. Open an input stream specifically for reading
+        std::ifstream reader(archiveFilePath, std::ios::binary);
+        if (reader.is_open()) {
+            // 3. Seek to that exact byte offset in the massive file
+            reader.seekg(offset, std::ios::beg);
+            
+            // 4. Read precisely 'length' bytes
+            // We use a vector buffer to safely hold the bytes before turning it into a string
+            std::string buffer;
+            buffer.resize(length);
+            reader.read(&buffer[0], length);
+            
+            html = buffer;
+            reader.close();
+        } else {
+            std::cerr << "Failed to open archive file for reading: " << archiveFilePath << std::endl;
+        }
+    }
+    
+    sqlite3_finalize(stmt);
+    return html;
 }
 
 bool PageStorage::hasPage(const std::string& url) {
-    // TODO: Query SQLite to check if a row with this URL exists
-    return false; // Placeholder
+    // Query SQLite to check if a row with this URL exists
+    const char* sql = "SELECT 1 FROM crawler_metadata WHERE url = ? LIMIT 1;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    
+    sqlite3_bind_text(stmt, 1, url.c_str(), -1, SQLITE_TRANSIENT);
+    
+    // If SQLITE_ROW is returned, it means at least one matching row was found!
+    bool exists = (sqlite3_step(stmt) == SQLITE_ROW);
+    
+    sqlite3_finalize(stmt);
+    return exists;
 }
 
 std::string PageStorage::getURLByID(int id) {

@@ -49,3 +49,13 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 **Problem:** Storing 50,000+ HTML files in RAM causes OOM crashes. Creating 50,000 individual files exhausts inodes and slows down disk I/O.
 **What I Tried:** Created `PageStorage.h` and `PageStorage.cpp`. Initialized an `std::ofstream` to open a massive `crawler_archive.dat` in `std::ios::app | std::ios::binary` mode. Implemented the first half of `storePage()` to capture the byte offset via `tellp()`, append the raw HTML, and force a `flush()` to disk.
 **Outcome:** Successfully built a high-performance, single-file append-only storage system that sidesteps inode exhaustion and RAM limitations.
+
+---
+
+## Session 5
+**Date:** July 10
+**Duration:** 45 minutes
+**Goal:** Integrate SQLite to finalize Hybrid Page Storage (Step 4, Part 2)
+**Problem:** The `.dat` file stores raw bytes sequentially, but we have no way to find a specific page inside a 10GB file without an index map.
+**What I Tried:** Downloaded the SQLite Amalgamation (`sqlite3.c`/`h`). Configured `CMakeLists.txt` and `.vscode` to compile C and C++ together via MSYS2 `g++`. Implemented `initDatabase()` to create a metadata table, and updated `storePage()`, `getPage()`, and `hasPage()` using SQLite prepared statements.
+**Outcome:** The Hybrid Storage architecture is fully functional. We can now store massive HTML pages to disk instantly and retrieve them using lightning-fast byte offsets stored in SQLite.
