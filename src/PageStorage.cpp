@@ -155,11 +155,35 @@ bool PageStorage::hasPage(const std::string& url) {
 }
 
 std::string PageStorage::getURLByID(int id) {
-    // TODO: Query SQLite for the URL where the Primary Key == id
-    return ""; // Placeholder
+    const char* sql = "SELECT url FROM crawler_metadata WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        return "";
+    }
+    
+    sqlite3_bind_int(stmt, 1, id);
+    
+    std::string url = "";
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        // SQLite returns a const unsigned char*, so we cast it to const char* for std::string
+        url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+    }
+    
+    sqlite3_finalize(stmt);
+    return url;
 }
 
 int PageStorage::pageCount() {
-    // TODO: Execute SELECT COUNT(*) FROM crawler_metadata
-    return 0; // Placeholder
+    const char* sql = "SELECT COUNT(*) FROM crawler_metadata;";
+    sqlite3_stmt* stmt;
+    
+    int count = 0;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            count = sqlite3_column_int(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+    }
+    return count;
 }
