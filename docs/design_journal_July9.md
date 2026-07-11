@@ -1,6 +1,4 @@
-# Weekly Design Journal
-
-Submit weekly. Every entry must contain all five sections.
+# Design Journal - July 9
 
 ## Entry July 9 (Phase 0 Design)
 
