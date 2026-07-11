@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-project(SuperCoders_Project02 CXX)
+project(SuperCoders_Project02 CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -13,6 +13,7 @@ file(GLOB SOURCES "src/*.cpp" "src/*.c")
 
 # Define the main executable for the crawler
 add_executable(crawler ${SOURCES})
+target_link_libraries(crawler curl)
 
 # Enable testing and add the test subdirectory
 enable_testing()

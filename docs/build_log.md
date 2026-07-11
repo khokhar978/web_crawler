@@ -59,3 +59,36 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 **Problem:** The `.dat` file stores raw bytes sequentially, but we have no way to find a specific page inside a 10GB file without an index map.
 **What I Tried:** Downloaded the SQLite Amalgamation (`sqlite3.c`/`h`). Configured `CMakeLists.txt` and `.vscode` to compile C and C++ together via MSYS2 `g++`. Implemented `initDatabase()` to create a metadata table, and updated `storePage()`, `getPage()`, and `hasPage()` using SQLite prepared statements.
 **Outcome:** The Hybrid Storage architecture is fully functional. We can now store massive HTML pages to disk instantly and retrieve them using lightning-fast byte offsets stored in SQLite.
+
+---
+
+## Session 6
+**Date:** July 10
+**Duration:** 30 minutes
+**Goal:** Implement the HTML Parser to extract hyperlinks (Step 5)
+**Problem:** Regular expressions are too slow and memory-intensive for parsing massive 2MB HTML pages continuously during a web crawl.
+**What I Tried:** Created `HTMLParser.h` and `HTMLParser.cpp`. Implemented a manual, zero-allocation string search loop using `std::string::find()` to rapidly jump from one `<a href="` tag to the next. Built a rudimentary relative URL resolver and filtered out invalid links (like `#`, `mailto:`, and `javascript:`).
+**Outcome:** Successfully created a lightning-fast HTML parser that bypasses regex bottlenecks and neatly stores all extracted links into our custom `DynamicArray<std::string>`.
+
+---
+
+## Session 7
+**Date:** July 11
+**Duration:** 30 minutes
+**Goal:** Implement cross-platform HTTP Client (Step 6)
+**Problem:** We needed a way to fetch HTML from the internet across different operating systems. C++ has no native networking library.
+**What I Tried:** Adhered to the Phase 0 design proposal to use `libcurl` wrapped in a `Downloader` interface. The main hurdle was installing `libcurl` on Windows. We resolved this by leveraging the MSYS2 environment's package manager (`pacman`). Ran `pacman -S mingw-w64-ucrt-x86_64-curl` to install the pre-compiled binaries, and updated `.vscode/tasks.json` to include the `-lcurl` linker flag. Implemented `HTTPClient::fetchPage()` using `curl_easy_init()`.
+**Outcome:** Successfully built a robust HTTP Client that follows redirects and handles timeouts cross-platform, without forcing us to manually compile complex dependencies from source.
+
+---
+
+## Session 8
+**Date:** July 11
+**Duration:** 30 minutes
+**Goal:** Fix compilation and linker bugs during full system build
+**Problem 1 (Compilation):** `HTMLParser.cpp` failed to compile with error: `class DynamicArray has no member named 'push_back'`. I had mistakenly assumed our custom array mimicked `std::vector::push_back`, but our custom implementation from Project 01 explicitly uses `append()`.
+**Problem 2 (Linking):** The linker (`ld.exe`) crashed with `undefined reference to sqlite3_open`. I discovered that by declaring `project(Crawler CXX)` in CMake, the C compiler was disabled. CMake completely ignored `sqlite3.c`, resulting in missing object files.
+**What I Tried:** 
+1. Fixed `HTMLParser.cpp` to correctly call `extractedUrls.append(url);`.
+2. Updated `CMakeLists.txt` to `project(SuperCoders_Project02 CXX C)` to explicitly enable the C compiler alongside C++.
+**Outcome:** The entire project now compiles and links perfectly via both VS Code's `tasks.json` and the standard `cmake --build .` Ninja system.
