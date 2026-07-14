@@ -92,3 +92,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 1. Fixed `HTMLParser.cpp` to correctly call `extractedUrls.append(url);`.
 2. Updated `CMakeLists.txt` to `project(SuperCoders_Project02 CXX C)` to explicitly enable the C compiler alongside C++.
 **Outcome:** The entire project now compiles and links perfectly via both VS Code's `tasks.json` and the standard `cmake --build .` Ninja system.
+
+---
+
+## Session 9
+**Date:** July 14
+**Duration:** 60 minutes
+**Goal:** Finalize Project 2 by wiring all components together in `main.cpp` and preparing the Project 3 Indexer stub.
+**Problem 1:** SQLite `UNIQUE constraint failed` crash when re-running the crawler on previously visited URLs.
+**Problem 2:** `iana.org` timed out due to overly aggressive anti-bot protection blocking the default `libcurl` requests, and SSL certificate verification failing on Windows.
+**What I Tried:** 
+1. Rewrote `main.cpp` to implement a Breadth-First Search (BFS) crawler loop utilizing `URLFrontier`, `SeenURLStore`, `HTTPClient`, `HTMLParser`, and `PageStorage`. Added CLI argument parsing for seed URL and depth.
+2. Fixed the SQLite crash by changing the SQL query in `PageStorage.cpp` to `INSERT OR IGNORE`. This prevents duplicate insertions while preserving the strictly sequential auto-incrementing IDs required for the Indexer stub.
+3. Fixed the `libcurl` issues by adding `CURLOPT_SSL_VERIFYPEER = 0L` to bypass missing Windows CA certificates, setting `CURLOPT_TIMEOUT` to 30 seconds, and spoofing a standard Google Chrome `CURLOPT_USERAGENT` to bypass bot blockers.
+**Outcome:** The crawler successfully navigates the web, downloads HTML, extracts hyperlinks, avoids infinite loops, and archives everything to SQLite seamlessly! Project 2 is officially complete.

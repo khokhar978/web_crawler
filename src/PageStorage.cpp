@@ -69,8 +69,9 @@ void PageStorage::storePage(const std::string& url, const std::string& html, int
     // Force a flush so the data hits the hard drive immediately (useful if the crawler crashes)
     archiveFile.flush();
     
-    // 3. Insert the url, depth, offset, and html.length() into the SQLite database
-    const char* sql = "INSERT INTO crawler_metadata (url, depth, offset, length) VALUES (?, ?, ?, ?);";
+    // 3. Insert the url, depth, offset, and html.length() into the SQLite database. 
+    // We use IGNORE so that if we re-crawl a URL, we don't delete the old row (which breaks the sequential IDs for Project 3).
+    const char* sql = "INSERT OR IGNORE INTO crawler_metadata (url, depth, offset, length) VALUES (?, ?, ?, ?);";
     sqlite3_stmt* stmt;
     
     // Prepare the SQL statement
