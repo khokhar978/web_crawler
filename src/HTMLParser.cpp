@@ -28,16 +28,43 @@ DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlConten
                 // Ignore empty URLs, javascript links, or internal page jumps (#)
                 if (!url.empty() && url.find("javascript:") != 0 && url.find("mailto:") != 0 && url.find("#") != 0) {
                     
-                    // Rudimentary Relative URL Resolver
-                    // If the URL doesn't start with http, it is likely relative
+                    // Improved URL Normalization Resolver
                     if (url.find("http") != 0) {
-                        // Ensure clean connection between base and relative path
-                        if (!baseUrl.empty() && baseUrl.back() == '/' && url.front() == '/') {
-                            url = baseUrl + url.substr(1);
-                        } else if (!baseUrl.empty() && baseUrl.back() != '/' && url.front() != '/') {
-                            url = baseUrl + "/" + url;
+                        if (url.find("//") == 0) {
+                            // Protocol relative
+                            size_t colonPos = baseUrl.find(":");
+                            std::string scheme = (colonPos != std::string::npos) ? baseUrl.substr(0, colonPos + 1) : "http:";
+                            url = scheme + url;
+                        } else if (url.front() == '/') {
+                            // Root relative
+                            size_t schemeEnd = baseUrl.find("://");
+                            size_t startPos = (schemeEnd != std::string::npos) ? schemeEnd + 3 : 0;
+                            size_t domainEnd = baseUrl.find("/", startPos);
+                            if (domainEnd != std::string::npos) {
+                                url = baseUrl.substr(0, domainEnd) + url;
+                            } else {
+                                if (!baseUrl.empty() && baseUrl.back() == '/') {
+                                    url = baseUrl.substr(0, baseUrl.length() - 1) + url;
+                                } else {
+                                    url = baseUrl + url;
+                                }
+                            }
+                        } else if (url.front() == '?') {
+                            // Query relative
+                            size_t queryPos = baseUrl.find('?');
+                            std::string baseWithoutQuery = (queryPos != std::string::npos) ? baseUrl.substr(0, queryPos) : baseUrl;
+                            url = baseWithoutQuery + url;
                         } else {
-                            url = baseUrl + url;
+                            // Path relative
+                            size_t lastSlash = baseUrl.find_last_of('/');
+                            size_t schemeEnd = baseUrl.find("://");
+                            if (lastSlash != std::string::npos && (schemeEnd == std::string::npos || lastSlash > schemeEnd + 2)) {
+                                url = baseUrl.substr(0, lastSlash + 1) + url;
+                            } else if (!baseUrl.empty() && baseUrl.back() != '/') {
+                                url = baseUrl + "/" + url;
+                            } else {
+                                url = baseUrl + url;
+                            }
                         }
                     }
                     

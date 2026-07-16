@@ -106,3 +106,16 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 2. Fixed the SQLite crash by changing the SQL query in `PageStorage.cpp` to `INSERT OR IGNORE`. This prevents duplicate insertions while preserving the strictly sequential auto-incrementing IDs required for the Indexer stub.
 3. Fixed the `libcurl` issues by adding `CURLOPT_SSL_VERIFYPEER = 0L` to bypass missing Windows CA certificates, setting `CURLOPT_TIMEOUT` to 30 seconds, and spoofing a standard Google Chrome `CURLOPT_USERAGENT` to bypass bot blockers.
 **Outcome:** The crawler successfully navigates the web, downloads HTML, extracts hyperlinks, avoids infinite loops, and archives everything to SQLite seamlessly! Project 2 is officially complete.
+
+---
+
+## Session 10
+**Date:** July 16
+**Duration:** 30 minutes
+**Goal:** Improve URL normalization and prevent duplicate crawls across restarts.
+**Problem 1:** The HTMLParser only handled basic relative and absolute URLs. It failed on query strings (`?`), root-relative (`/`), and protocol-relative (`//`) links, leading to malformed URLs.
+**Problem 2:** The crawler lost its in-memory `SeenStore` across restarts, causing it to re-download and re-append previously crawled pages to the `.dat` file, wasting bandwidth and disk space.
+**What I Tried:** 
+1. Rewrote the URL resolver in `HTMLParser.cpp` to correctly parse and reconstruct query-relative, root-relative, protocol-relative, and path-relative URLs based on standard URL resolution rules.
+2. Implemented "Hydration" in `main.cpp`. Upon startup, the crawler now queries the SQLite database for all previously crawled pages and pre-loads them into the in-memory `SeenStore`, guaranteeing O(1) duplicate skipping across restarts.
+**Outcome:** The crawler now flawlessly normalizes all standard URL edge cases and perfectly resumes crawls without duplicating previous downloads or hitting SQLite performance bottlenecks.

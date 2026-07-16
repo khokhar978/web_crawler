@@ -42,8 +42,25 @@ int main(int argc, char* argv[]) {
     PageStorage storage("crawler_archive.dat", "crawler.db");
     HTTPClient downloader;
 
+    // --- Hydrate SeenStore from Database to skip duplicates on restart ---
+    int existingCount = storage.pageCount();
+    if (existingCount > 0) {
+        std::cout << "Resuming session. Loading " << existingCount << " previously crawled URLs from database...\n";
+        for (int i = 1; i <= existingCount; ++i) {
+            std::string url = storage.getURLByID(i);
+            if (!url.empty()) {
+                seenStore.markSeen(url);
+            }
+        }
+    }
+    // -------------------------------------------------------------------
+
     // 3. Push initial seed
-    frontier.push(seedUrl, 0);
+    if (!seenStore.isSeen(seedUrl)) {
+        frontier.push(seedUrl, 0);
+    } else {
+        std::cout << "Seed URL has already been crawled in a previous session!\n";
+    }
 
     // 4. Main Crawling Loop (Breadth-First Search)
     while (!frontier.isEmpty()) {
