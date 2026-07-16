@@ -59,51 +59,76 @@ int main(int argc, char* argv[]) {
     if (!seenStore.isSeen(seedUrl)) {
         frontier.push(seedUrl, 0);
     } else {
-        std::cout << "Seed URL has already been crawled in a previous session!\n";
+        std::cout << "Initial Seed URL has already been crawled in a previous session!\n";
     }
 
-    // 4. Main Crawling Loop (Breadth-First Search)
-    while (!frontier.isEmpty()) {
-        FrontierEntry current = frontier.pop();
-        std::string currentUrl = current.url;
-        int currentDepth = current.depth;
+    // TODO: Load frontier from disk here
 
-        // Skip if we have already crawled this URL
-        if (seenStore.isSeen(currentUrl)) {
-            continue;
-        }
+    // 4. Interactive Crawler Outer Loop
+    while (true) {
+        // If frontier runs dry, prompt the user for more work
+        if (frontier.isEmpty()) {
+            std::cout << "\nFrontier is empty. Enter a new seed URL (or type 'exit' to quit): ";
+            std::string inputUrl;
+            std::cin >> inputUrl;
 
-        // Mark it as seen
-        seenStore.markSeen(currentUrl);
-        std::cout << "Crawling [Depth " << currentDepth << "]: " << currentUrl << "...\n";
+            if (inputUrl == "exit") {
+                break;
+            }
 
-        // Download the page
-        std::string htmlContent = downloader.fetchPage(currentUrl);
-        if (htmlContent.empty()) {
-            std::cout << "  -> Failed to download or empty page. Skipping.\n";
-            continue;
-        }
-
-        // Store the page in SQLite and append to archive
-        storage.storePage(currentUrl, htmlContent, currentDepth);
-        std::cout << "  -> Downloaded and stored (" << htmlContent.size() << " bytes).\n";
-
-        // If we haven't reached the max depth, extract links and add them to the frontier
-        if (currentDepth < maxDepth) {
-            DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl);
-            int numLinks = newLinks.size();
-            std::cout << "  -> Extracted " << numLinks << " links.\n";
-
-            for (int i = 0; i < numLinks; ++i) {
-                // Avoid flooding the frontier with already-seen URLs
-                if (!seenStore.isSeen(newLinks[i])) {
-                    frontier.push(newLinks[i], currentDepth + 1);
-                }
+            if (!seenStore.isSeen(inputUrl)) {
+                frontier.push(inputUrl, 0);
+            } else {
+                std::cout << "That URL has already been crawled! Please try another.\n";
+                continue;
             }
         }
+
+        // 5. Main Crawling Loop (Breadth-First Search)
+        while (!frontier.isEmpty()) {
+            FrontierEntry current = frontier.pop();
+            std::string currentUrl = current.url;
+            int currentDepth = current.depth;
+
+            // Skip if we have already crawled this URL
+            if (seenStore.isSeen(currentUrl)) {
+                continue;
+            }
+
+            // Mark it as seen
+            seenStore.markSeen(currentUrl);
+            std::cout << "Crawling [Depth " << currentDepth << "]: " << currentUrl << "...\n";
+
+            // Download the page
+            std::string htmlContent = downloader.fetchPage(currentUrl);
+            if (htmlContent.empty()) {
+                std::cout << "  -> Failed to download or empty page. Skipping.\n";
+                continue;
+            }
+
+            // Store the page in SQLite and append to archive
+            storage.storePage(currentUrl, htmlContent, currentDepth);
+            std::cout << "  -> Downloaded and stored (" << htmlContent.size() << " bytes).\n";
+
+            // If we haven't reached the max depth, extract links and add them to the frontier
+            if (currentDepth < maxDepth) {
+                DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl);
+                int numLinks = newLinks.size();
+                std::cout << "  -> Extracted " << numLinks << " links.\n";
+
+                for (int i = 0; i < numLinks; ++i) {
+                    // Avoid flooding the frontier with already-seen URLs
+                    if (!seenStore.isSeen(newLinks[i])) {
+                        frontier.push(newLinks[i], currentDepth + 1);
+                    }
+                }
+            }
+            
+            // TODO: Save frontier to disk here (e.g. periodically)
+        }
     }
 
-    std::cout << "\nCrawling Complete. Frontier is empty.\n";
+    std::cout << "\nCrawling Complete. Exiting crawler loop.\n";
 
     // 5. Run the Indexer Stub for Project 3 preparation
     runIndexerStub(storage);

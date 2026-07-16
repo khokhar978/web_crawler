@@ -119,3 +119,13 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 1. Rewrote the URL resolver in `HTMLParser.cpp` to correctly parse and reconstruct query-relative, root-relative, protocol-relative, and path-relative URLs based on standard URL resolution rules.
 2. Implemented "Hydration" in `main.cpp`. Upon startup, the crawler now queries the SQLite database for all previously crawled pages and pre-loads them into the in-memory `SeenStore`, guaranteeing O(1) duplicate skipping across restarts.
 **Outcome:** The crawler now flawlessly normalizes all standard URL edge cases and perfectly resumes crawls without duplicating previous downloads or hitting SQLite performance bottlenecks.
+
+---
+
+## Session 11
+**Date:** July 16
+**Duration:** 15 minutes
+**Goal:** Implement interactive crawler loop fallback and prepare for frontier persistence.
+**Problem:** When the URL Frontier emptied out, the crawler would immediately terminate. To resume crawling, the user had to entirely restart the program from the command line, which interrupted the workflow.
+**What I Tried:** Wrapped the core BFS crawling logic in `main.cpp` inside an outer `while(true)` loop. Added logic to check if `frontier.isEmpty()` and interactively prompt the user via `std::cin` for a new seed URL (or allow them to type `exit`). Verified that new seed URLs are checked against the hydrated `SeenStore` before pushing. Left structured `TODO` placeholders to cleanly integrate Frontier Disk Persistence in the next sprint.
+**Outcome:** The crawler now runs continuously. If it runs out of links to crawl, it gracefully pauses and waits for manual input instead of crashing or exiting unexpectedly.
