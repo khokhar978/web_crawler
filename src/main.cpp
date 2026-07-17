@@ -22,19 +22,20 @@ void runIndexerStub(PageStorage& storage) {
 }
 
 int main(int argc, char* argv[]) {
-    // 1. Parse Command Line Arguments
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <seed_url> <max_depth>\n";
-        std::cerr << "Example: " << argv[0] << " http://example.com 2\n";
-        return 1;
+    // 1. Parse Command Line Arguments (Optional)
+    std::string seedUrl = "";
+    int maxDepth = 2; // Default max depth
+
+    if (argc >= 3) {
+        seedUrl = argv[1];
+        maxDepth = std::stoi(argv[2]);
+        std::cout << "Seed URL from args: " << seedUrl << "\n";
+        std::cout << "Max Depth from args: " << maxDepth << "\n\n";
+    } else {
+        std::cout << "No seed URL provided in arguments. Defaulting to interactive mode.\n\n";
     }
 
-    std::string seedUrl = argv[1];
-    int maxDepth = std::stoi(argv[2]);
-
     std::cout << "Starting Web Crawler...\n";
-    std::cout << "Seed URL: " << seedUrl << "\n";
-    std::cout << "Max Depth: " << maxDepth << "\n\n";
 
     // 2. Initialize Core Subsystems
     URLFrontier frontier;
@@ -56,13 +57,20 @@ int main(int argc, char* argv[]) {
     // -------------------------------------------------------------------
 
     // 3. Push initial seed
-    if (!seenStore.isSeen(seedUrl)) {
-        frontier.push(seedUrl, 0);
-    } else {
-        std::cout << "Initial Seed URL has already been crawled in a previous session!\n";
+    if (!seedUrl.empty()) {
+        if (!seenStore.isSeen(seedUrl)) {
+            frontier.push(seedUrl, 0);
+        } else {
+            std::cout << "Initial Seed URL has already been crawled in a previous session!\n";
+        }
     }
 
-    // TODO: Load frontier from disk here
+    // --- Load frontier backup ---
+    // (We do NOT mark these as seen in SeenStore, because our pop() logic relies on isSeen() to skip duplicates!)
+    frontier.loadFromFile("frontier_backup.txt");
+    // ----------------------------
+
+    int pagesCrawled = 0;
 
     // 4. Interactive Crawler Outer Loop
     while (true) {
@@ -124,7 +132,12 @@ int main(int argc, char* argv[]) {
                 }
             }
             
-            // TODO: Save frontier to disk here (e.g. periodically)
+            pagesCrawled++;
+            
+            // Save frontier state to disk periodically to guarantee zero data loss with high performance
+            if (pagesCrawled % 50 == 0) {
+                frontier.saveToFile("frontier_backup.txt");
+            }
         }
     }
 

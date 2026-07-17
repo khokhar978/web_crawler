@@ -1,4 +1,6 @@
 #include "URLFrontier.h"
+#include <fstream>
+#include <iostream>
 
 URLFrontier::URLFrontier() {
     // Constructor
@@ -28,4 +30,46 @@ bool URLFrontier::isEmpty() const {
 
 int URLFrontier::size() const {
     return queue.getSize();
+}
+
+void URLFrontier::saveToFile(const std::string& filename) const {
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "Failed to open " << filename << " for saving frontier.\n";
+        return;
+    }
+    for (const auto& entry : queue) {
+        outFile << entry.depth << " " << entry.url << "\n";
+    }
+    outFile.close();
+}
+
+void URLFrontier::loadFromFile(const std::string& filename) {
+    std::ifstream inFile(filename);
+    if (!inFile.is_open()) {
+        // It's normal if the file doesn't exist on the first run
+        return;
+    }
+    
+    int depth;
+    std::string url;
+    int count = 0;
+    while (inFile >> depth >> url) {
+        push(url, depth);
+        count++;
+    }
+    inFile.close();
+    
+    if (count > 0) {
+        std::cout << "Loaded " << count << " URLs into the Frontier from backup.\n";
+    }
+}
+
+std::vector<std::string> URLFrontier::getQueuedUrls() const {
+    std::vector<std::string> urls;
+    urls.reserve(queue.getSize());
+    for (const auto& entry : queue) {
+        urls.push_back(entry.url);
+    }
+    return urls;
 }
