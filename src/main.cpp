@@ -5,23 +5,28 @@
 #include "PageStorage.h"
 #include "HTMLParser.h"
 #include "HTTPClient.h"
+#include "Logger.h"
+#include "RobotsChecker.h"
 
 // A simple stub function to demonstrate iteration over the PageStorage database for Project 3
 void runIndexerStub(PageStorage& storage) {
-    std::cout << "\n============================================\n";
-    std::cout << "Running Project 3 Indexer Preparation Stub...\n";
-    std::cout << "============================================\n";
+    Logger::info("============================================");
+    Logger::info("Running Project 3 Indexer Preparation Stub...");
+    Logger::info("============================================");
     int count = storage.pageCount();
-    std::cout << "Total pages archived: " << count << "\n";
+    Logger::info("Total pages archived: " + std::to_string(count));
     
     for (int i = 1; i <= count; ++i) { // Assuming SQLite IDs start at 1
         std::string url = storage.getURLByID(i);
-        std::cout << "[" << i << "] -> " << url << "\n";
+        Logger::info("[" + std::to_string(i) + "] -> " + url);
     }
-    std::cout << "============================================\n\n";
+    Logger::info("============================================");
 }
 
 int main(int argc, char* argv[]) {
+    // Initialize Logger (appends to crawler.log)
+    Logger::init("crawler.log");
+
     // 1. Parse Command Line Arguments (Optional)
     std::string seedUrl = "";
     int maxDepth = 2; // Default max depth
@@ -29,24 +34,25 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) {
         seedUrl = argv[1];
         maxDepth = std::stoi(argv[2]);
-        std::cout << "Seed URL from args: " << seedUrl << "\n";
-        std::cout << "Max Depth from args: " << maxDepth << "\n\n";
+        Logger::info("Seed URL from args: " + seedUrl);
+        Logger::info("Max Depth from args: " + std::to_string(maxDepth));
     } else {
-        std::cout << "No seed URL provided in arguments. Defaulting to interactive mode.\n\n";
+        Logger::info("No seed URL provided in arguments. Defaulting to interactive mode.");
     }
 
-    std::cout << "Starting Web Crawler...\n";
+    Logger::info("Starting Web Crawler...");
 
     // 2. Initialize Core Subsystems
     URLFrontier frontier;
     SeenURLStore seenStore;
     PageStorage storage("crawler_archive.dat", "crawler.db");
     HTTPClient downloader;
+    RobotsChecker robotsChecker;
 
     // --- Hydrate SeenStore from Database to skip duplicates on restart ---
     int existingCount = storage.pageCount();
     if (existingCount > 0) {
-        std::cout << "Resuming session. Loading " << existingCount << " previously crawled URLs from database...\n";
+        Logger::info("Resuming session. Loading " + std::to_string(existingCount) + " previously crawled URLs from database...");
         for (int i = 1; i <= existingCount; ++i) {
             std::string url = storage.getURLByID(i);
             if (!url.empty()) {
@@ -61,7 +67,7 @@ int main(int argc, char* argv[]) {
         if (!seenStore.isSeen(seedUrl)) {
             frontier.push(seedUrl, 0);
         } else {
-            std::cout << "Initial Seed URL has already been crawled in a previous session!\n";
+            Logger::warn("Initial Seed URL has already been crawled in a previous session!");
         }
     }
 
@@ -76,18 +82,21 @@ int main(int argc, char* argv[]) {
     while (true) {
         // If frontier runs dry, prompt the user for more work
         if (frontier.isEmpty()) {
+            Logger::info("Frontier is empty. Waiting for user input...");
             std::cout << "\nFrontier is empty. Enter a new seed URL (or type 'exit' to quit): ";
             std::string inputUrl;
             std::cin >> inputUrl;
 
             if (inputUrl == "exit") {
+                Logger::info("User requested exit.");
                 break;
             }
 
             if (!seenStore.isSeen(inputUrl)) {
                 frontier.push(inputUrl, 0);
+                Logger::info("New seed URL added: " + inputUrl);
             } else {
-                std::cout << "That URL has already been crawled! Please try another.\n";
+                Logger::warn("User entered a URL that has already been crawled: " + inputUrl);
                 continue;
             }
         }
@@ -105,24 +114,31 @@ int main(int argc, char* argv[]) {
 
             // Mark it as seen
             seenStore.markSeen(currentUrl);
-            std::cout << "Crawling [Depth " << currentDepth << "]: " << currentUrl << "...\n";
+
+            // Check robots.txt compliance (cached per domain)
+            if (!robotsChecker.isAllowed(currentUrl)) {
+                Logger::warn("Skipping (blocked by robots.txt): " + currentUrl);
+                continue;
+            }
+
+            Logger::info("Crawling [Depth " + std::to_string(currentDepth) + "]: " + currentUrl);
 
             // Download the page
             std::string htmlContent = downloader.fetchPage(currentUrl);
             if (htmlContent.empty()) {
-                std::cout << "  -> Failed to download or empty page. Skipping.\n";
+                Logger::error("Failed to download or empty page: " + currentUrl);
                 continue;
             }
 
             // Store the page in SQLite and append to archive
             storage.storePage(currentUrl, htmlContent, currentDepth);
-            std::cout << "  -> Downloaded and stored (" << htmlContent.size() << " bytes).\n";
+            Logger::info("Downloaded and stored (" + std::to_string(htmlContent.size()) + " bytes): " + currentUrl);
 
             // If we haven't reached the max depth, extract links and add them to the frontier
             if (currentDepth < maxDepth) {
                 DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl);
                 int numLinks = newLinks.size();
-                std::cout << "  -> Extracted " << numLinks << " links.\n";
+                Logger::info("Extracted " + std::to_string(numLinks) + " links from: " + currentUrl);
 
                 for (int i = 0; i < numLinks; ++i) {
                     // Avoid flooding the frontier with already-seen URLs
@@ -137,14 +153,16 @@ int main(int argc, char* argv[]) {
             // Save frontier state to disk periodically to guarantee zero data loss with high performance
             if (pagesCrawled % 50 == 0) {
                 frontier.saveToFile("frontier_backup.txt");
+                Logger::debug("Frontier backup saved. Pages crawled so far: " + std::to_string(pagesCrawled));
             }
         }
     }
 
-    std::cout << "\nCrawling Complete. Exiting crawler loop.\n";
+    Logger::info("Crawling Complete. Total pages crawled this session: " + std::to_string(pagesCrawled));
 
-    // 5. Run the Indexer Stub for Project 3 preparation
+    // 6. Run the Indexer Stub for Project 3 preparation
     runIndexerStub(storage);
 
+    Logger::shutdown();
     return 0;
 }

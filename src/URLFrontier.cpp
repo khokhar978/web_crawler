@@ -1,6 +1,6 @@
 #include "URLFrontier.h"
 #include <fstream>
-#include <iostream>
+#include "Logger.h"
 
 URLFrontier::URLFrontier() {
     // Constructor
@@ -35,7 +35,7 @@ int URLFrontier::size() const {
 void URLFrontier::saveToFile(const std::string& filename) const {
     std::ofstream outFile(filename);
     if (!outFile.is_open()) {
-        std::cerr << "Failed to open " << filename << " for saving frontier.\n";
+        Logger::error("Failed to open " + filename + " for saving frontier.");
         return;
     }
     for (const auto& entry : queue) {
@@ -61,7 +61,7 @@ void URLFrontier::loadFromFile(const std::string& filename) {
     inFile.close();
     
     if (count > 0) {
-        std::cout << "Loaded " << count << " URLs into the Frontier from backup.\n";
+        Logger::info("Loaded " + std::to_string(count) + " URLs into the Frontier from backup.");
     }
 }
 

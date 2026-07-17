@@ -145,3 +145,31 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. Implemented a `pagesCrawled` counter and batched the disk saving to only execute every 50 pages. Since the SQLite DB acts as ground truth, dropping a few unsaved queue updates during a crash is automatically handled by the `isSeen()` checks on the next run.
 4. Made command-line arguments optional, allowing the crawler to boot directly from backups without user input.
 **Outcome:** The crawler is now 100% crash-proof with zero data loss. It can pause, crash, and resume entirely autonomously without any disk I/O bottlenecks.
+
+---
+
+## Session 13
+**Date:** July 17
+**Duration:** 20 minutes
+**Goal:** Replace raw `std::cout` logging with a professional, timestamped Logger class.
+**Problem:** All crawler output was unstructured `std::cout` text with no timestamps, no severity levels, and no persistent record. If the crawler ran overnight and crashed at 3 AM, there was no way to trace what happened.
+**What I Tried:** 
+1. Created `Logger.h` and `Logger.cpp` with a static Logger class supporting `INFO`, `WARN`, `ERROR`, and `DEBUG` log levels.
+2. Each log message is formatted as `[2026-07-17 14:30:05] [INFO ] message` with automatic timestamps via `std::localtime`.
+3. All messages are dual-routed: printed to the console for live monitoring AND appended to a persistent `crawler.log` file for post-mortem analysis.
+4. Replaced every `std::cout` and `std::cerr` in `main.cpp` and `URLFrontier.cpp` with the appropriate `Logger::info()`, `Logger::warn()`, `Logger::error()`, or `Logger::debug()` calls.
+**Outcome:** The crawler now produces professional, timestamped logs with severity levels, and all output is permanently saved to `crawler.log` for later review.
+
+---
+
+## Session 14
+**Date:** July 17
+**Duration:** 30 minutes
+**Goal:** Implement `robots.txt` compliance with per-domain caching to crawl ethically.
+**Problem:** The crawler was ignoring `robots.txt` entirely, potentially violating website crawling policies and risking IP bans from servers that enforce bot restrictions.
+**What I Tried:** 
+1. Created `RobotsChecker.h` and `RobotsChecker.cpp` with a per-domain caching system backed by the custom `HashMap` from Project 1.
+2. When the crawler first encounters a new domain, `RobotsChecker` fetches `domain/robots.txt` exactly once, parses all `Disallow:` rules for `User-agent: *`, and caches them in the `HashMap`.
+3. All subsequent URLs on the same domain perform a lightning-fast O(1) cache lookup instead of re-fetching `robots.txt`.
+4. Integrated the checker into `main.cpp` so blocked URLs are skipped with a `[WARN]` log message before any download attempt.
+**Outcome:** The crawler now ethically respects website crawling policies. Each domain's `robots.txt` is fetched exactly once, adding negligible overhead while ensuring full compliance.
