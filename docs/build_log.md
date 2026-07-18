@@ -173,3 +173,16 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. All subsequent URLs on the same domain perform a lightning-fast O(1) cache lookup instead of re-fetching `robots.txt`.
 4. Integrated the checker into `main.cpp` so blocked URLs are skipped with a `[WARN]` log message before any download attempt.
 **Outcome:** The crawler now ethically respects website crawling policies. Each domain's `robots.txt` is fetched exactly once, adding negligible overhead while ensuring full compliance.
+
+---
+
+## Session 15
+**Date:** July 18
+**Duration:** 20 minutes
+**Goal:** Add a Crawl Statistics Summary dashboard to display session metrics.
+**Problem:** After a crawl session, there was no consolidated view of what the crawler accomplished. The user had to manually scroll through hundreds of log lines to estimate pages crawled, failures, and data volume.
+**What I Tried:** 
+1. Created a header-only `CrawlStats.h` struct that tracks: pages downloaded, failed downloads, robots.txt blocks, duplicates skipped, links extracted, total bytes downloaded, session duration, average page size, and pages per second.
+2. Integrated `stats.record*()` calls at every relevant event in the `main.cpp` crawl loop.
+3. Implemented a `printSummary()` method that formats all metrics into a professional box-bordered table using Unicode box-drawing characters, with human-readable byte formatting (`KB`/`MB`) and duration formatting (`m`/`s`).
+**Outcome:** The crawler now prints a beautiful, comprehensive session summary when the user exits. All stats are also written to `crawler.log` for historical tracking.

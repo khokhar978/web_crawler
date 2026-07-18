@@ -7,6 +7,7 @@
 #include "HTTPClient.h"
 #include "Logger.h"
 #include "RobotsChecker.h"
+#include "CrawlStats.h"
 
 // A simple stub function to demonstrate iteration over the PageStorage database for Project 3
 void runIndexerStub(PageStorage& storage) {
@@ -77,6 +78,8 @@ int main(int argc, char* argv[]) {
     // ----------------------------
 
     int pagesCrawled = 0;
+    CrawlStats stats;
+    stats.start();
 
     // 4. Interactive Crawler Outer Loop
     while (true) {
@@ -109,6 +112,7 @@ int main(int argc, char* argv[]) {
 
             // Skip if we have already crawled this URL
             if (seenStore.isSeen(currentUrl)) {
+                stats.recordDuplicateSkip();
                 continue;
             }
 
@@ -118,6 +122,7 @@ int main(int argc, char* argv[]) {
             // Check robots.txt compliance (cached per domain)
             if (!robotsChecker.isAllowed(currentUrl)) {
                 Logger::warn("Skipping (blocked by robots.txt): " + currentUrl);
+                stats.recordRobotsBlock();
                 continue;
             }
 
@@ -127,11 +132,13 @@ int main(int argc, char* argv[]) {
             std::string htmlContent = downloader.fetchPage(currentUrl);
             if (htmlContent.empty()) {
                 Logger::error("Failed to download or empty page: " + currentUrl);
+                stats.recordFailure();
                 continue;
             }
 
             // Store the page in SQLite and append to archive
             storage.storePage(currentUrl, htmlContent, currentDepth);
+            stats.recordDownload(htmlContent.size());
             Logger::info("Downloaded and stored (" + std::to_string(htmlContent.size()) + " bytes): " + currentUrl);
 
             // If we haven't reached the max depth, extract links and add them to the frontier
@@ -139,6 +146,7 @@ int main(int argc, char* argv[]) {
                 DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl);
                 int numLinks = newLinks.size();
                 Logger::info("Extracted " + std::to_string(numLinks) + " links from: " + currentUrl);
+                stats.recordLinksExtracted(numLinks);
 
                 for (int i = 0; i < numLinks; ++i) {
                     // Avoid flooding the frontier with already-seen URLs
@@ -159,9 +167,10 @@ int main(int argc, char* argv[]) {
     }
 
     Logger::info("Crawling Complete. Total pages crawled this session: " + std::to_string(pagesCrawled));
+    stats.printSummary();
 
     // 6. Run the Indexer Stub for Project 3 preparation
-    runIndexerStub(storage);
+    //runIndexerStub(storage);
 
     Logger::shutdown();
     return 0;
