@@ -4,6 +4,7 @@
 #include <string>
 #include <fstream>
 #include "sqlite3.h"
+#include "DynamicArray.h"
 
 // Hybrid Storage: SQL Database (crawler_metadata) + Append-Only File (crawler_archive.dat)
 class PageStorage {
@@ -27,6 +28,7 @@ public:
     bool hasPage(const std::string& url);
     std::string getURLByID(int id);
     int pageCount();
+    DynamicArray<std::string> getAllSeenURLs();
 };
 
 #endif // PAGE_STORAGE_H

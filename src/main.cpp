@@ -53,11 +53,11 @@ int main(int argc, char* argv[]) {
     // --- Hydrate SeenStore from Database to skip duplicates on restart ---
     int existingCount = storage.pageCount();
     if (existingCount > 0) {
-        Logger::info("Resuming session. Loading " + std::to_string(existingCount) + " previously crawled URLs from database...");
-        for (int i = 1; i <= existingCount; ++i) {
-            std::string url = storage.getURLByID(i);
-            if (!url.empty()) {
-                seenStore.markSeen(url);
+        Logger::info("Resuming session. Loading " + std::to_string(existingCount) + " previously crawled URLs via batch query...");
+        DynamicArray<std::string> allUrls = storage.getAllSeenURLs();
+        for (int i = 0; i < allUrls.size(); ++i) {
+            if (!allUrls[i].empty()) {
+                seenStore.markSeen(allUrls[i]);
             }
         }
     }

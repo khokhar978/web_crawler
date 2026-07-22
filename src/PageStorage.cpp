@@ -61,7 +61,7 @@ void PageStorage::storePage(const std::string& url, const std::string& html, int
 
     // 1. Get the current write position (offset) of the archive file before we write anything
     // We cast to long to ensure we have enough capacity for massive files
-    long offset = static_cast<long>(archiveFile.tellp());
+    long long offset = static_cast<long>(archiveFile.tellp());
     
     // 2. Write the raw HTML directly to the end of the archive file
     archiveFile.write(html.c_str(), html.length());
@@ -187,4 +187,25 @@ int PageStorage::pageCount() {
         sqlite3_finalize(stmt);
     }
     return count;
+}
+
+DynamicArray<std::string> PageStorage::getAllSeenURLs() {
+    DynamicArray<std::string> urls;
+    const char* sql = "SELECT url FROM crawler_metadata;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare select all urls statement: " << sqlite3_errmsg(db) << std::endl;
+        return urls;
+    }
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* urlText = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        if (urlText) {
+            urls.append(std::string(urlText));
+        }
+    }
+    
+    sqlite3_finalize(stmt);
+    return urls;
 }

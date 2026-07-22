@@ -2,7 +2,7 @@
 #define URL_FRONTIER_H
 
 #include <string>
-#include <vector>
+#include "DynamicArray.h"
 #include "LinkedList.h"
 
 // The struct that travels through the frontier queue
@@ -27,7 +27,7 @@ public:
     // Persistence Methods
     void saveToFile(const std::string& filename) const;
     void loadFromFile(const std::string& filename);
-    std::vector<std::string> getQueuedUrls() const;
+    DynamicArray<std::string> getQueuedUrls() const;
 };
 
 #endif // URL_FRONTIER_H

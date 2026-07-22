@@ -1,5 +1,6 @@
 #include "HTMLParser.h"
 #include <iostream>
+#include <cctype>
 
 DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlContent, const std::string& baseUrl) {
     DynamicArray<std::string> extractedUrls;
@@ -7,23 +8,57 @@ DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlConten
     size_t pos = 0;
 
     // Fast manual string search loop
-    while ((pos = htmlContent.find("<a ", pos)) != std::string::npos) {
-        // Find the href attribute within this anchor tag
-        size_t hrefPos = htmlContent.find("href=\"", pos);
+    while ((pos = htmlContent.find('<', pos)) != std::string::npos) {
+        // Check if this is an 'a' or 'A' tag
+        if (pos + 1 >= htmlContent.length() || std::tolower(static_cast<unsigned char>(htmlContent[pos + 1])) != 'a') {
+            pos++;
+            continue;
+        }
         
+        // Ensure it's isolated (space, tab, newline, or immediately closing)
+        char nextC = pos + 2 < htmlContent.length() ? htmlContent[pos + 2] : ' ';
+        if (!std::isspace(static_cast<unsigned char>(nextC)) && nextC != '>') {
+            pos++;
+            continue;
+        }
+
         // Find the end of this anchor tag so we don't accidentally grab a different tag's href
-        size_t endTagPos = htmlContent.find(">", pos);
+        size_t endTagPos = htmlContent.find('>', pos);
+        if (endTagPos == std::string::npos) break;
+
+        // Find href case-insensitively within this tag
+        size_t hrefPos = std::string::npos;
+        for (size_t i = pos; i + 4 < endTagPos; ++i) {
+            if (std::tolower(static_cast<unsigned char>(htmlContent[i])) == 'h' &&
+                std::tolower(static_cast<unsigned char>(htmlContent[i+1])) == 'r' &&
+                std::tolower(static_cast<unsigned char>(htmlContent[i+2])) == 'e' &&
+                std::tolower(static_cast<unsigned char>(htmlContent[i+3])) == 'f' &&
+                htmlContent[i+4] == '=') {
+                hrefPos = i;
+                break;
+            }
+        }
 
         // If href exists AND it is inside the current <a> tag
-        if (hrefPos != std::string::npos && hrefPos < endTagPos) {
-            // Move past "href=\"" to the start of the actual URL
-            size_t startQuote = hrefPos + 6; 
+        if (hrefPos != std::string::npos) {
+            // Move past "href=" to the value
+            size_t valStart = hrefPos + 5;
             
-            // Find the closing quote
-            size_t endQuote = htmlContent.find("\"", startQuote);
-            
-            if (endQuote != std::string::npos) {
-                std::string url = htmlContent.substr(startQuote, endQuote - startQuote);
+            // Skip any spaces between '=' and the quote
+            while (valStart < endTagPos && std::isspace(static_cast<unsigned char>(htmlContent[valStart]))) {
+                valStart++;
+            }
+
+            char quoteChar = htmlContent[valStart];
+            // Check for both single and double quotes
+            if (quoteChar == '"' || quoteChar == '\'') {
+                size_t startQuote = valStart + 1; 
+                
+                // Find the matching closing quote
+                size_t endQuote = htmlContent.find(quoteChar, startQuote);
+                
+                if (endQuote != std::string::npos && endQuote < endTagPos) {
+                    std::string url = htmlContent.substr(startQuote, endQuote - startQuote);
                 
                 // Ignore empty URLs, javascript links, or internal page jumps (#)
                 if (!url.empty() && url.find("javascript:") != 0 && url.find("mailto:") != 0 && url.find("#") != 0) {
@@ -70,6 +105,7 @@ DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlConten
                     
                     // Add to our DynamicArray!
                     extractedUrls.append(url);
+                }
                 }
             }
         }

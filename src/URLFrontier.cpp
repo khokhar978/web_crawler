@@ -65,11 +65,11 @@ void URLFrontier::loadFromFile(const std::string& filename) {
     }
 }
 
-std::vector<std::string> URLFrontier::getQueuedUrls() const {
-    std::vector<std::string> urls;
-    urls.reserve(queue.getSize());
+DynamicArray<std::string> URLFrontier::getQueuedUrls() const {
+    int size = queue.getSize();
+    DynamicArray<std::string> urls(size > 0 ? size : 4);
     for (const auto& entry : queue) {
-        urls.push_back(entry.url);
+        urls.append(entry.url);
     }
     return urls;
 }
