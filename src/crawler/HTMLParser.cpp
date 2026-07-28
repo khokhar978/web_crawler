@@ -2,7 +2,7 @@
 #include <iostream>
 #include <cctype>
 
-DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlContent, const std::string& baseUrl) {
+DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlContent, const std::string& baseUrl, const std::string& allowedDomain) {
     DynamicArray<std::string> extractedUrls;
     
     size_t pos = 0;
@@ -103,8 +103,10 @@ DynamicArray<std::string> HTMLParser::extractLinks(const std::string& htmlConten
                         }
                     }
                     
-                    // Add to our DynamicArray!
-                    extractedUrls.append(url);
+                    // Add to our DynamicArray if it matches the allowed domain (or if no domain restriction)
+                    if (allowedDomain.empty() || url.find(allowedDomain) != std::string::npos) {
+                        extractedUrls.append(url);
+                    }
                 }
                 }
             }

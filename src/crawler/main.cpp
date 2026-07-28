@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
 
             // If we haven't reached the max depth, extract links and add them to the frontier
             if (currentDepth < maxDepth) {
-                DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl);
+                DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl, "wikipedia.org");
                 int numLinks = newLinks.size();
                 Logger::info("Extracted " + std::to_string(numLinks) + " links from: " + currentUrl);
                 stats.recordLinksExtracted(numLinks);

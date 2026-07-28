@@ -241,3 +241,16 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. Designed `addDocument()` to sequentially process tokens and smartly increment Term Frequency for repeated words in the same document without generating duplicate Document IDs.
 4. Added `test_inverted_index.cpp` testing basic insertions, search retrieval, and frequency counting.
 **Outcome:** The `InvertedIndex` is complete. It successfully maps keywords to `IndexPosting` arrays in memory and calculates Term Frequencies perfectly.
+
+---
+
+## Session 20
+**Date:** July 28
+**Duration:** 20 minutes
+**Goal:** Build the Main Indexer Pipeline
+**Problem:** We need an executable that bridges the Crawler's SQLite Database to our new Indexer components, seamlessly converting raw stored HTML into a searchable in-memory Inverted Index.
+**What I Tried:** 
+1. Created `src/indexer/main.cpp` to loop through the database using `PageStorage`.
+2. Built the pipeline: extracted raw HTML -> `HTMLTextExtractor` -> `Tokenizer` -> `InvertedIndex`.
+3. Updated `CMakeLists.txt` to properly split the build into `crawler.exe` and `indexer.exe` by separating `GLOB` sources, preventing multiple `main()` definitions.
+**Outcome:** The indexer successfully compiles and runs, processing the crawler database, calculating term frequencies, and outputting the final count of unique keywords.
