@@ -186,3 +186,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 2. Integrated `stats.record*()` calls at every relevant event in the `main.cpp` crawl loop.
 3. Implemented a `printSummary()` method that formats all metrics into a professional box-bordered table using Unicode box-drawing characters, with human-readable byte formatting (`KB`/`MB`) and duration formatting (`m`/`s`).
 **Outcome:** The crawler now prints a beautiful, comprehensive session summary when the user exits. All stats are also written to `crawler.log` for historical tracking.
+
+---
+
+## Session 16
+**Date:** July 28
+**Duration:** 45 minutes
+**Goal:** Draft Phase 0 Design Proposal for Indexer and Refactor Project Structure
+**Problem:** Preparing to build the Search Engine Indexer (Project 3) required designing the architecture first, and our codebase was becoming cluttered with all components in the root `src` and `include` directories.
+**What I Tried:** 
+1. Authored `indexer_design.md` detailing the RAM-first Inverted Index strategy, exact-match Tokenizer, and custom HashMap requirements.
+2. Created `crawler`, `common`, and `indexer` subdirectories inside `src` and `include`.
+3. Moved all crawler files to their respective subdirectories and centralized shared components (Logger, HashMap, LinkedList, DynamicArray, SQLite, PageStorage) into `common`.
+4. Updated `CMakeLists.txt` to use `GLOB_RECURSE` and added new `include_directories`.
+**Outcome:** Project is successfully reorganized into modular components and compiles perfectly. The Indexer design is finalized and ready for implementation.

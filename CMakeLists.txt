@@ -6,10 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -Wextra")
 
 # Include directory for header files
-include_directories(include)
+include_directories(include include/common include/crawler include/indexer)
 
 # Gather all source files (C++ and C)
-file(GLOB SOURCES "src/*.cpp" "src/*.c")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.c")
 
 # Define the main executable for the crawler
 add_executable(crawler ${SOURCES})
