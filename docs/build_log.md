@@ -200,3 +200,16 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. Moved all crawler files to their respective subdirectories and centralized shared components (Logger, HashMap, LinkedList, DynamicArray, SQLite, PageStorage) into `common`.
 4. Updated `CMakeLists.txt` to use `GLOB_RECURSE` and added new `include_directories`.
 **Outcome:** Project is successfully reorganized into modular components and compiles perfectly. The Indexer design is finalized and ready for implementation.
+
+---
+
+## Session 17
+**Date:** July 28
+**Duration:** 30 minutes
+**Goal:** Implement the Document Reader (HTML Text Extractor) for the Indexer
+**Problem:** The Indexer needs a clean stream of text from raw HTML pages to tokenize, but HTML pages contain tags, scripts, and styling that ruin text analysis. We need O(N) extraction without massive memory allocation.
+**What I Tried:** 
+1. Created `HTMLTextExtractor.h` and `HTMLTextExtractor.cpp` inside `indexer` module.
+2. Built an in-place character-by-character state machine to gracefully skip tags, completely ignore `<script>` and `<style>` blocks, and collapse whitespace.
+3. Created unit tests in `tests/test_html_extractor.cpp` verifying tag removal, script/style stripping, and whitespace collapsing.
+**Outcome:** The `HTMLTextExtractor` is fully functional and perfectly strips raw HTML into clean text strings. Unit tests passed successfully.
