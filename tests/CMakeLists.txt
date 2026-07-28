@@ -5,3 +5,7 @@ add_test(NAME test_extractor COMMAND test_extractor)
 add_executable(test_tokenizer test_tokenizer.cpp ../src/indexer/Tokenizer.cpp)
 target_include_directories(test_tokenizer PRIVATE ../include)
 add_test(NAME test_tokenizer COMMAND test_tokenizer)
+
+add_executable(test_inverted_index test_inverted_index.cpp ../src/indexer/InvertedIndex.cpp)
+target_include_directories(test_inverted_index PRIVATE ../include)
+add_test(NAME test_inverted_index COMMAND test_inverted_index)

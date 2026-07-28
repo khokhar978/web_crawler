@@ -227,3 +227,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. Implemented `removeStopWords()` using our custom `HashMap` pre-loaded with over 100 common English stop words to filter the `DynamicArray` in O(1) time per word.
 4. Added `test_tokenizer.cpp` to the test suite and updated `CMakeLists.txt`.
 **Outcome:** The Tokenizer perfectly extracts, normalizes, and filters words. All unit tests passed, proving the O(1) stop word filtering is highly effective.
+
+---
+
+## Session 19
+**Date:** July 28
+**Duration:** 30 minutes
+**Goal:** Implement the Core Inverted Index
+**Problem:** We need a way to map the normalized words from the Tokenizer back to the specific Documents (URLs) they came from, allowing for instant search lookups and term frequency counting.
+**What I Tried:** 
+1. Created `InvertedIndex.h` and `InvertedIndex.cpp` using our custom `HashMap` for O(1) keyword lookups.
+2. Implemented an `IndexPosting` struct to track both the Document ID and the Term Frequency of each word.
+3. Designed `addDocument()` to sequentially process tokens and smartly increment Term Frequency for repeated words in the same document without generating duplicate Document IDs.
+4. Added `test_inverted_index.cpp` testing basic insertions, search retrieval, and frequency counting.
+**Outcome:** The `InvertedIndex` is complete. It successfully maps keywords to `IndexPosting` arrays in memory and calculates Term Frequencies perfectly.
