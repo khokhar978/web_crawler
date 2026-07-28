@@ -213,3 +213,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 2. Built an in-place character-by-character state machine to gracefully skip tags, completely ignore `<script>` and `<style>` blocks, and collapse whitespace.
 3. Created unit tests in `tests/test_html_extractor.cpp` verifying tag removal, script/style stripping, and whitespace collapsing.
 **Outcome:** The `HTMLTextExtractor` is fully functional and perfectly strips raw HTML into clean text strings. Unit tests passed successfully.
+
+---
+
+## Session 18
+**Date:** July 28
+**Duration:** 30 minutes
+**Goal:** Implement the Tokenizer and Stop Word Filter
+**Problem:** Extracted HTML text is just a continuous string. We need to break it down into normalized individual words (tokens) for indexing, while aggressively filtering out meaningless punctuation and common stop words to save memory.
+**What I Tried:** 
+1. Created `Tokenizer.h` and `Tokenizer.cpp`.
+2. Implemented a single-pass `tokenize()` function that extracts lowercase alphanumeric words and treats punctuation/spaces as word boundaries.
+3. Implemented `removeStopWords()` using our custom `HashMap` pre-loaded with over 100 common English stop words to filter the `DynamicArray` in O(1) time per word.
+4. Added `test_tokenizer.cpp` to the test suite and updated `CMakeLists.txt`.
+**Outcome:** The Tokenizer perfectly extracts, normalizes, and filters words. All unit tests passed, proving the O(1) stop word filtering is highly effective.
