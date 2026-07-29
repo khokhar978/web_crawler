@@ -7,6 +7,8 @@
 #include "indexer/Tokenizer.h"
 #include "indexer/InvertedIndex.h"
 #include "indexer/QueryEngine.h"
+#include <thread>
+#include <atomic>
 
 int main() {
     std::cout << "======================================\n";
@@ -24,51 +26,116 @@ int main() {
     }
     std::cout << "Found " << totalPages << " pages in database.\n\n";
 
-    // 2. Initialize Index
     InvertedIndex index;
-    std::cout << "Building Inverted Index...\n";
-    
     auto startTime = std::chrono::high_resolution_clock::now();
-    int processedCount = 0;
     
-    // 3. Process every page
-    // SQLite ROWIDs usually start at 1 and auto-increment
-    int currentId = 1;
-    
-    while (processedCount < totalPages) {
-        std::string url = storage.getURLByID(currentId);
+    std::cout << "Attempting to load Inverted Index from disk...\n";
+    if (index.loadFromDisk("inverted_index.dat")) {
+        std::cout << "Successfully loaded Inverted Index from disk!\n";
+    } else {
+        std::cout << "No saved index found. Building Inverted Index from database...\n";
         
-        if (!url.empty()) {
-            std::string html = storage.getPage(url);
+        int processedCount = 0;
+        // SQLite ROWIDs usually start at 1 and auto-increment
+        int currentId = 1;
+        
+        // Determine optimal thread count based on hardware
+        int numThreads = std::thread::hardware_concurrency();
+        if (numThreads == 0) numThreads = 8;
+        std::cout << "Using " << numThreads << " parallel threads for indexing...\n";
+        
+        int chunkSize = 800; // Large chunk to minimize thread lifecycle overhead
+        
+        // --- DOUBLE BUFFERING PRODUCER-CONSUMER PIPELINE ---
+        
+        // Pre-fetch the very first batch (Buffer A)
+        DynamicArray<PageData> currentBatch = storage.getPageBatch(currentId, chunkSize);
+        if (!currentBatch.isEmpty()) {
+            currentId = currentBatch.get(currentBatch.size() - 1).id + 1;
+        } else {
+            currentId++;
+        }
+        
+        while (!currentBatch.isEmpty()) {
+            // 1. Start the 9th Producer Thread to concurrently fetch the NEXT batch (Buffer B) from disk
+            DynamicArray<PageData> nextBatch;
+            std::thread diskThread([&storage, &nextBatch, currentId, chunkSize]() {
+                nextBatch = storage.getPageBatch(currentId, chunkSize);
+            });
             
-            // Pipeline Step 1: Strip HTML tags, scripts, and styles
-            std::string cleanText = HTMLTextExtractor::extractText(html);
+            // 2. Dynamic Load Balancing: Shared atomic index for the 8 CPU workers
+            std::atomic<int> next_page_idx(0);
             
-            // Pipeline Step 2: Tokenize and normalize words, drop punctuation
-            DynamicArray<std::string> tokens = Tokenizer::tokenize(cleanText);
+            DynamicArray<std::thread> workers(numThreads);
             
-            // Pipeline Step 3: Remove useless stop words to save massive memory
-            Tokenizer::removeStopWords(tokens);
+            for (int t = 0; t < numThreads; ++t) {
+                // 3. Spawn CPU worker thread
+                workers.append(std::thread([&index, &currentBatch, &next_page_idx]() {
+                    while (true) {
+                        // Instantly grab the next available page index
+                        int p = next_page_idx.fetch_add(1, std::memory_order_relaxed);
+                        
+                        // If there are no pages left in the batch, this thread is done
+                        if (p >= currentBatch.size()) break;
+                        
+                        const std::string& html = currentBatch.get(p).html;
+                        int docId = currentBatch.get(p).id;
+                        
+                        std::string cleanText = HTMLTextExtractor::extractText(html);
+                        DynamicArray<std::string> tokens = Tokenizer::tokenize(cleanText);
+                        Tokenizer::removeStopWords(tokens);
+                        
+                        index.addDocument(docId, tokens);
+                    }
+                }));
+            }
             
-            // Pipeline Step 4: Feed clean tokens into the index (with Term Frequency)
-            index.addDocument(currentId, tokens);
+            // 4. Wait for all 8 CPU workers to finish processing currentBatch
+            for (auto& t : workers) {
+                if (t.joinable()) {
+                    t.join();
+                }
+            }
             
-            processedCount++;
+            processedCount += currentBatch.size();
             
             // Print progress
-            if (processedCount % 50 == 0 || processedCount == totalPages) {
+            if (processedCount % 100 == 0 || processedCount >= totalPages) {
                 std::cout << "Processed " << processedCount << " / " << totalPages << " pages...\r";
                 std::cout.flush();
             }
+            
+            // 5. Ensure the 9th Producer Thread has finished loading nextBatch
+            if (diskThread.joinable()) {
+                diskThread.join();
+            }
+            
+            // 6. Swap Buffer B into Buffer A (instant move operation)
+            currentBatch = std::move(nextBatch);
+            
+            // Update currentId for the next loop
+            if (!currentBatch.isEmpty()) {
+                currentId = currentBatch.get(currentBatch.size() - 1).id + 1;
+            } else if (currentId <= totalPages * 5) {
+                // If it was empty but we haven't hit the safety limit, skip missing ID
+                currentId++;
+                // Manually fetch next one to continue loop
+                currentBatch = storage.getPageBatch(currentId, chunkSize);
+                if (!currentBatch.isEmpty()) {
+                    currentId = currentBatch.get(currentBatch.size() - 1).id + 1;
+                }
+            }
+            
+            if (currentId > totalPages * 5) {
+                if (processedCount < totalPages) {
+                    std::cout << "\nWarning: Stopped early due to missing IDs.\n";
+                }
+                break;
+            }
         }
         
-        currentId++;
-        
-        // Safety break in case of massive database corruption or missing IDs
-        if (currentId > totalPages * 5) {
-            std::cout << "\nWarning: Stopped early due to missing IDs.\n";
-            break;
-        }
+        std::cout << "\nSaving Inverted Index to disk...\n";
+        index.saveToDisk("inverted_index.dat");
     }
     
     auto endTime = std::chrono::high_resolution_clock::now();

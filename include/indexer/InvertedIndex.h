@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <mutex>
 #include "common/DynamicArray.h"
 #include "common/HashMap.h"
 
@@ -18,6 +19,7 @@ class InvertedIndex {
 private:
     // Core data structure: Maps a keyword to a list of Postings (DocID + Frequency)
     HashMap<std::string, DynamicArray<IndexPosting>> indexMap;
+    mutable std::mutex indexMutex;
     
 public:
     InvertedIndex();
@@ -38,4 +40,8 @@ public:
      * Returns the total number of unique words currently in the index.
      */
     int size() const;
+    
+    // Persistence
+    bool saveToDisk(const std::string& filepath) const;
+    bool loadFromDisk(const std::string& filepath);
 };

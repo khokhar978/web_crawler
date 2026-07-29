@@ -13,8 +13,8 @@ DynamicArray<std::string> Tokenizer::tokenize(const std::string& text) {
     for (size_t i = 0; i < text.size(); ++i) {
         char c = text[i];
         
-        // Alphanumeric characters form words.
-        if (std::isalnum(static_cast<unsigned char>(c))) {
+        // Alphanumeric characters, plus specific symbols like +, #, - form words (for c++, c#, c-span)
+        if (std::isalnum(static_cast<unsigned char>(c)) || c == '+' || c == '#' || c == '-') {
             currentToken += std::tolower(static_cast<unsigned char>(c));
         } else {
             // Any non-alphanumeric character (whitespace, punctuation) acts as a word boundary.

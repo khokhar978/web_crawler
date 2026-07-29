@@ -137,6 +137,62 @@ std::string PageStorage::getPage(const std::string& url) {
     return html;
 }
 
+DynamicArray<PageData> PageStorage::getPageBatch(int startId, int limit) {
+    DynamicArray<PageData> batch(limit);
+    
+    // 1. Single SQLite query to get all offsets and lengths for the batch
+    const char* sql = "SELECT id, offset, length FROM crawler_metadata WHERE id >= ? ORDER BY id ASC LIMIT ?;";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare batch select statement: " << sqlite3_errmsg(db) << std::endl;
+        return batch;
+    }
+    
+    sqlite3_bind_int(stmt, 1, startId);
+    sqlite3_bind_int(stmt, 2, limit);
+    
+    // We will store the metadata temporarily to avoid keeping the DB locked while reading the file
+    struct Meta { int id; long offset; long length; };
+    DynamicArray<Meta> metaList(limit);
+    
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        Meta m;
+        m.id = sqlite3_column_int(stmt, 0);
+        m.offset = sqlite3_column_int64(stmt, 1);
+        m.length = sqlite3_column_int64(stmt, 2);
+        metaList.append(m);
+    }
+    sqlite3_finalize(stmt);
+    
+    if (metaList.isEmpty()) {
+        return batch;
+    }
+    
+    // 2. Open the huge archive file exactly ONCE per batch
+    std::ifstream reader(archiveFilePath, std::ios::binary);
+    if (!reader.is_open()) {
+        std::cerr << "Failed to open archive file for batch reading." << std::endl;
+        return batch;
+    }
+    
+    // 3. Rip through the file for all requested pages
+    for (int i = 0; i < metaList.size(); ++i) {
+        const Meta& m = metaList[i];
+        
+        reader.seekg(m.offset, std::ios::beg);
+        
+        std::string buffer;
+        buffer.resize(m.length);
+        reader.read(&buffer[0], m.length);
+        
+        batch.append(PageData(m.id, std::move(buffer)));
+    }
+    
+    reader.close();
+    return batch;
+}
+
 bool PageStorage::hasPage(const std::string& url) {
     // Query SQLite to check if a row with this URL exists
     const char* sql = "SELECT 1 FROM crawler_metadata WHERE url = ? LIMIT 1;";

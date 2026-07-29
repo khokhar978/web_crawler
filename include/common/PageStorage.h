@@ -6,6 +6,14 @@
 #include "sqlite3.h"
 #include "DynamicArray.h"
 
+struct PageData {
+    int id;
+    std::string html;
+    
+    PageData() : id(0), html("") {}
+    PageData(int i, std::string h) : id(i), html(std::move(h)) {}
+};
+
 // Hybrid Storage: SQL Database (crawler_metadata) + Append-Only File (crawler_archive.dat)
 class PageStorage {
 private:
@@ -25,6 +33,7 @@ public:
     // Project 03 required API
     void storePage(const std::string& url, const std::string& html, int depth);
     std::string getPage(const std::string& url);
+    DynamicArray<PageData> getPageBatch(int startId, int limit);
     bool hasPage(const std::string& url);
     std::string getURLByID(int id);
     int pageCount();
