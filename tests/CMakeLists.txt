@@ -9,3 +9,7 @@ add_test(NAME test_tokenizer COMMAND test_tokenizer)
 add_executable(test_inverted_index test_inverted_index.cpp ../src/indexer/InvertedIndex.cpp)
 target_include_directories(test_inverted_index PRIVATE ../include)
 add_test(NAME test_inverted_index COMMAND test_inverted_index)
+
+add_executable(test_query_engine test_query_engine.cpp ../src/indexer/QueryEngine.cpp ../src/indexer/InvertedIndex.cpp ../src/indexer/Tokenizer.cpp)
+target_include_directories(test_query_engine PRIVATE ../include)
+add_test(NAME test_query_engine COMMAND test_query_engine)

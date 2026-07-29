@@ -254,3 +254,32 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 2. Built the pipeline: extracted raw HTML -> `HTMLTextExtractor` -> `Tokenizer` -> `InvertedIndex`.
 3. Updated `CMakeLists.txt` to properly split the build into `crawler.exe` and `indexer.exe` by separating `GLOB` sources, preventing multiple `main()` definitions.
 **Outcome:** The indexer successfully compiles and runs, processing the crawler database, calculating term frequencies, and outputting the final count of unique keywords.
+
+---
+
+## Session 21
+**Date:** July 28
+**Duration:** 40 minutes
+**Goal:** Crawler Domain Filtering and Queue Optimization
+**Problem:** The crawler accumulated over 250,000 URLs at Depth 2. This explosion happened because Wikipedia sidebars link to 200+ foreign languages (`fr.wikipedia.org`, etc.), and our naive `"wikipedia.org"` check let them all through. Additionally, resuming the crawler loaded massive Depth 3 backups that took forever to discard.
+**What I Tried:** 
+1. **Domain Restriction:** Refactored `HTMLParser::extractLinks` to accept an optional `allowedDomain` parameter to discard invalid URLs efficiently *before* they are returned.
+2. Updated `src/crawler/main.cpp` to strictly use `"en.wikipedia.org"`.
+3. **Queue Resumption Fix:** Added an early-exit check (`if (currentDepth > maxDepth) continue;`) to instantly drop URLs exceeding the requested max depth upon resumption, rather than downloading them first.
+4. **Queue Downsampling:** Ran a Python script on the `build/frontier_backup.txt` file to randomly sample and reduce the queued URLs from 256,000 down to exactly 15,000 to keep the crawl times manageable.
+**Outcome:** The Crawler is now strictly locked to English Wikipedia, and the frontier is optimized for a fast, targeted data gathering run.
+
+---
+
+## Session 22
+**Date:** July 29
+**Duration:** 30 minutes
+**Goal:** Query Engine and Interactive Search Interface
+**Problem:** The Inverted Index effectively maps keywords to documents in RAM, but we lacked the logic to parse multi-word queries, rank the matched documents, and a user interface to display the results.
+**What I Tried:** 
+1. Created `QueryEngine.h` and `QueryEngine.cpp` to orchestrate searches.
+2. Implemented an O(N+M) `AND` intersection algorithm to mandate that all words in a query exist in the returned document.
+3. Added basic ranking by summing the Term Frequencies (TF) of the intersected words and sorting the final results via Insertion Sort.
+4. Built a continuous interactive CLI loop inside `src/indexer/main.cpp` allowing the user to seamlessly submit searches and view the top 5 ranking Wikipedia URLs.
+5. Added unit tests for intersection and ranking in `tests/test_query_engine.cpp` and updated the testing CMake suite.
+**Outcome:** The Search Engine is fully functional. It successfully builds the index from the database and allows real-time interactive querying with proper ranking.

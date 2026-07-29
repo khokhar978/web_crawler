@@ -6,6 +6,7 @@
 #include "indexer/HTMLTextExtractor.h"
 #include "indexer/Tokenizer.h"
 #include "indexer/InvertedIndex.h"
+#include "indexer/QueryEngine.h"
 
 int main() {
     std::cout << "======================================\n";
@@ -77,9 +78,46 @@ int main() {
     std::cout << "Time taken:      " << diff.count() << " seconds\n";
     std::cout << "Unique Keywords: " << index.size() << "\n";
     std::cout << "======================================\n";
+    // 4. Interactive Search Engine Loop
+    std::cout << "\nWelcome to SuperCoders Search!\n";
+    std::cout << "Type a multi-word query to search (or 'exit' to quit).\n\n";
     
-    // In Phase 3, we would serialize this `index` to disk so the Query Engine can use it.
-    // For now, it lives gloriously in RAM.
+    std::string query;
+    while (true) {
+        std::cout << "Search> ";
+        std::getline(std::cin, query);
+        
+        if (query == "exit" || query == "quit") {
+            break;
+        }
+        if (query.empty()) {
+            continue;
+        }
+        
+        auto searchStart = std::chrono::high_resolution_clock::now();
+        
+        // Execute the Query
+        DynamicArray<QueryResult> results = QueryEngine::search(query, index);
+        
+        auto searchEnd = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> searchDiff = searchEnd - searchStart;
+        
+        // Display Results
+        if (results.isEmpty()) {
+            std::cout << "No matching documents found.\n\n";
+        } else {
+            std::cout << "Found " << results.size() << " results in " << searchDiff.count() << " ms:\n";
+            
+            // Print top 5 results
+            int displayCount = (results.size() < 5) ? results.size() : 5;
+            for (int i = 0; i < displayCount; ++i) {
+                std::string resultUrl = storage.getURLByID(results[i].docID);
+                std::cout << "  " << (i + 1) << ". [Score: " << results[i].score << "] " << resultUrl << "\n";
+            }
+            std::cout << "\n";
+        }
+    }
     
+    std::cout << "Shutting down Search Engine...\n";
     return 0;
 }

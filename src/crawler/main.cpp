@@ -110,6 +110,11 @@ int main(int argc, char* argv[]) {
             std::string currentUrl = current.url;
             int currentDepth = current.depth;
 
+            // Instantly discard URLs that exceed our max depth (useful if resuming with a lower depth)
+            if (currentDepth > maxDepth) {
+                continue;
+            }
+
             // Skip if we have already crawled this URL
             if (seenStore.isSeen(currentUrl)) {
                 stats.recordDuplicateSkip();
@@ -143,7 +148,7 @@ int main(int argc, char* argv[]) {
 
             // If we haven't reached the max depth, extract links and add them to the frontier
             if (currentDepth < maxDepth) {
-                DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl, "wikipedia.org");
+                DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl, "en.wikipedia.org");
                 int numLinks = newLinks.size();
                 Logger::info("Extracted " + std::to_string(numLinks) + " links from: " + currentUrl);
                 stats.recordLinksExtracted(numLinks);
