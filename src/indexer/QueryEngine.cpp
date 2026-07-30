@@ -33,21 +33,37 @@ DynamicArray<QueryResult> QueryEngine::search(const std::string& query, const In
         return DynamicArray<QueryResult>(); // AND logic fails instantly if any word is missing
     }
     
+    // BM25 Hyperparameters
+    const double k1 = 1.2;
+    const double b = 0.75;
+    
     // We use maxDocID as a proxy for total documents (N)
     int totalDocs = index.getTotalDocs();
     if (totalDocs < firstPostings.size()) totalDocs = firstPostings.size();
     
-    // Calculate IDF for the first token
-    double firstIDF = std::log(static_cast<double>(totalDocs) / firstPostings.size());
+    // Calculate Average Document Length for BM25
+    double avgDocLength = 1.0; // Prevent division by zero
+    if (totalDocs > 0) {
+        avgDocLength = static_cast<double>(index.getTotalTokens()) / totalDocs;
+    }
+    
+    // Calculate IDF for the first token using BM25 IDF formula
+    // IDF = ln( (N - n + 0.5) / (n + 0.5) + 1.0 )
+    double n1 = static_cast<double>(firstPostings.size());
+    double firstIDF = std::log((totalDocs - n1 + 0.5) / (n1 + 0.5) + 1.0);
     
     // Convert first postings into our working result set (which includes scores)
     DynamicArray<QueryResult> currentResults;
     for (int i = 0; i < firstPostings.size(); ++i) {
-        // Sublinear TF Scaling: 1 + log(TF) to prevent word repetition spam
-        double tfWeight = 1.0 + std::log(static_cast<double>(firstPostings[i].frequency));
-        // TF-IDF = TF_weight * IDF
-        double tfIdfScore = tfWeight * firstIDF;
-        currentResults.append({firstPostings[i].docID, tfIdfScore});
+        int docID = firstPostings[i].docID;
+        double tf = static_cast<double>(firstPostings[i].frequency);
+        double docLength = static_cast<double>(index.getDocLength(docID));
+        
+        // True BM25 Term Frequency Saturation and Length Normalization
+        double tfWeight = (tf * (k1 + 1.0)) / (tf + k1 * (1.0 - b + b * (docLength / avgDocLength)));
+        double bm25Score = tfWeight * firstIDF;
+        
+        currentResults.append({docID, bm25Score});
     }
     
     // 3. Intersect with postings of all subsequent tokens (AND logic)
@@ -57,8 +73,9 @@ DynamicArray<QueryResult> QueryEngine::search(const std::string& query, const In
             return DynamicArray<QueryResult>(); // AND logic fails
         }
         
-        // Calculate IDF for this token
-        double nextIDF = std::log(static_cast<double>(totalDocs) / nextPostings.size());
+        // Calculate BM25 IDF for this token
+        double ni = static_cast<double>(nextPostings.size());
+        double nextIDF = std::log((totalDocs - ni + 0.5) / (ni + 0.5) + 1.0);
         
         DynamicArray<QueryResult> intersected;
         
@@ -66,14 +83,17 @@ DynamicArray<QueryResult> QueryEngine::search(const std::string& query, const In
         int p1 = 0, p2 = 0;
         while (p1 < currentResults.size() && p2 < nextPostings.size()) {
             if (currentResults[p1].docID == nextPostings[p2].docID) {
-                // Match found! Sum their TF-IDF scores
-                // Sublinear TF Scaling: 1 + log(TF)
-                double tfWeight = 1.0 + std::log(static_cast<double>(nextPostings[p2].frequency));
-                double tokenTfIdf = tfWeight * nextIDF;
+                // Match found! Sum their BM25 scores
+                int docID = currentResults[p1].docID;
+                double tf = static_cast<double>(nextPostings[p2].frequency);
+                double docLength = static_cast<double>(index.getDocLength(docID));
+                
+                double tfWeight = (tf * (k1 + 1.0)) / (tf + k1 * (1.0 - b + b * (docLength / avgDocLength)));
+                double tokenBm25 = tfWeight * nextIDF;
                 
                 intersected.append({
-                    currentResults[p1].docID, 
-                    currentResults[p1].score + tokenTfIdf
+                    docID, 
+                    currentResults[p1].score + tokenBm25
                 });
                 p1++;
                 p2++;

@@ -119,14 +119,26 @@ bool RobotsChecker::isAllowed(const std::string& url) {
     }
     
     // Check if we've already cached this domain's rules
-    if (!cache.contains(domain)) {
-        // First time seeing this domain — fetch and cache its robots.txt
-        RobotsRules rules = fetchAndParse(domain);
-        cache.put(domain, rules);
+    mtx.lock();
+    bool isCached = cache.contains(domain);
+    mtx.unlock();
+
+    if (!isCached) {
+        // First time seeing this domain — fetch and cache its robots.txt (without holding the lock)
+        RobotsRules fetchedRules = fetchAndParse(domain);
+        
+        mtx.lock();
+        if (!cache.contains(domain)) { // Double check in case another thread already fetched it
+            cache.put(domain, fetchedRules);
+        }
+        mtx.unlock();
     }
     
-    // Get the cached rules
-    RobotsRules& rules = cache.get(domain);
+    // Copy the rules out of the cache while holding the lock to prevent dangling references
+    mtx.lock();
+    RobotsRules rules = cache.get(domain); 
+    mtx.unlock();
+    
     std::string path = extractPath(url);
     
     // Check if the path starts with any disallowed prefix

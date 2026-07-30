@@ -2,6 +2,9 @@
 #define URL_FRONTIER_H
 
 #include <string>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 #include "DynamicArray.h"
 #include "LinkedList.h"
 
@@ -15,14 +18,24 @@ struct FrontierEntry {
 class URLFrontier {
 private:
     LinkedList<FrontierEntry> queue;
+    mutable std::mutex mtx;
+    std::condition_variable cv;
 
 public:
+    int totalWorkers{0};
+    int waitingWorkers{0};
+    bool isFinished{false};
+
     URLFrontier();
     
     void push(const std::string& url, int depth);
     FrontierEntry pop();
     bool isEmpty() const;
     int size() const;
+    
+    void incrementWorkers();
+    void decrementWorkers();
+    void resetFinished();
     
     // Persistence Methods
     void saveToFile(const std::string& filename) const;

@@ -54,6 +54,7 @@ void PageStorage::initDatabase() {
 }
 
 void PageStorage::storePage(const std::string& url, const std::string& html, int depth) {
+    std::lock_guard<std::mutex> lock(mtx);
     if (!archiveFile.is_open()) {
         std::cerr << "Error: Archive file is not open!" << std::endl;
         return;
@@ -96,6 +97,7 @@ void PageStorage::storePage(const std::string& url, const std::string& html, int
 }
 
 std::string PageStorage::getPage(const std::string& url) {
+    std::lock_guard<std::mutex> lock(mtx);
     // 1. Query SQLite for the offset and length using the URL
     const char* sql = "SELECT offset, length FROM crawler_metadata WHERE url = ?;";
     sqlite3_stmt* stmt;
@@ -138,6 +140,7 @@ std::string PageStorage::getPage(const std::string& url) {
 }
 
 DynamicArray<PageData> PageStorage::getPageBatch(int startId, int limit) {
+    std::lock_guard<std::mutex> lock(mtx);
     DynamicArray<PageData> batch(limit);
     
     // 1. Single SQLite query to get all offsets and lengths for the batch
@@ -194,6 +197,7 @@ DynamicArray<PageData> PageStorage::getPageBatch(int startId, int limit) {
 }
 
 bool PageStorage::hasPage(const std::string& url) {
+    std::lock_guard<std::mutex> lock(mtx);
     // Query SQLite to check if a row with this URL exists
     const char* sql = "SELECT 1 FROM crawler_metadata WHERE url = ? LIMIT 1;";
     sqlite3_stmt* stmt;
@@ -212,6 +216,7 @@ bool PageStorage::hasPage(const std::string& url) {
 }
 
 std::string PageStorage::getURLByID(int id) {
+    std::lock_guard<std::mutex> lock(mtx);
     const char* sql = "SELECT url FROM crawler_metadata WHERE id = ?;";
     sqlite3_stmt* stmt;
     
@@ -232,6 +237,7 @@ std::string PageStorage::getURLByID(int id) {
 }
 
 int PageStorage::pageCount() {
+    std::lock_guard<std::mutex> lock(mtx);
     const char* sql = "SELECT COUNT(*) FROM crawler_metadata;";
     sqlite3_stmt* stmt;
     
@@ -246,6 +252,7 @@ int PageStorage::pageCount() {
 }
 
 DynamicArray<std::string> PageStorage::getAllSeenURLs() {
+    std::lock_guard<std::mutex> lock(mtx);
     DynamicArray<std::string> urls;
     const char* sql = "SELECT url FROM crawler_metadata;";
     sqlite3_stmt* stmt;

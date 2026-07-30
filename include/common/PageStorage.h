@@ -3,6 +3,7 @@
 
 #include <string>
 #include <fstream>
+#include <mutex>
 #include "sqlite3.h"
 #include "DynamicArray.h"
 
@@ -21,6 +22,7 @@ private:
     std::string dbFilePath;
     std::ofstream archiveFile;
     sqlite3* db; // Pointer to our SQLite connection
+    std::mutex mtx;
 
     // Helper method to setup the SQLite database table
     void initDatabase();

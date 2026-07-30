@@ -1,5 +1,9 @@
 #include <iostream>
 #include <string>
+#include <thread>
+#include <vector>
+#include <atomic>
+#include <string>
 #include "URLFrontier.h"
 #include "SeenURLStore.h"
 #include "PageStorage.h"
@@ -77,54 +81,41 @@ int main(int argc, char* argv[]) {
     frontier.loadFromFile("frontier_backup.txt");
     // ----------------------------
 
-    int pagesCrawled = 0;
+    std::atomic<int> pagesCrawled{0};
     CrawlStats stats;
     stats.start();
-
-    // 4. Interactive Crawler Outer Loop
-    while (true) {
-        // If frontier runs dry, prompt the user for more work
-        if (frontier.isEmpty()) {
-            Logger::info("Frontier is empty. Waiting for user input...");
-            std::cout << "\nFrontier is empty. Enter a new seed URL (or type 'exit' to quit): ";
-            std::string inputUrl;
-            std::cin >> inputUrl;
-
-            if (inputUrl == "exit") {
-                Logger::info("User requested exit.");
+    
+    // Spawn Thread Pool (Strictly limited to 8 to avoid Wikipedia bans)
+    int numThreads = 8;
+    
+    std::vector<std::thread> workers;
+    
+    auto workerTask = [&]() {
+        frontier.incrementWorkers();
+        
+        // Local downloader instance per thread for thread safety AND Keep-Alive
+        HTTPClient localDownloader;
+        
+        while (true) {
+            FrontierEntry current = frontier.pop();
+            
+            // Terminal Signal
+            if (current.depth == -1) {
                 break;
             }
-
-            if (!seenStore.isSeen(inputUrl)) {
-                frontier.push(inputUrl, 0);
-                Logger::info("New seed URL added: " + inputUrl);
-            } else {
-                Logger::warn("User entered a URL that has already been crawled: " + inputUrl);
-                continue;
-            }
-        }
-
-        // 5. Main Crawling Loop (Breadth-First Search)
-        while (!frontier.isEmpty()) {
-            FrontierEntry current = frontier.pop();
+            
             std::string currentUrl = current.url;
             int currentDepth = current.depth;
 
-            // Instantly discard URLs that exceed our max depth (useful if resuming with a lower depth)
-            if (currentDepth > maxDepth) {
-                continue;
-            }
+            if (currentDepth > maxDepth) continue;
 
-            // Skip if we have already crawled this URL
             if (seenStore.isSeen(currentUrl)) {
                 stats.recordDuplicateSkip();
                 continue;
             }
 
-            // Mark it as seen
             seenStore.markSeen(currentUrl);
 
-            // Check robots.txt compliance (cached per domain)
             if (!robotsChecker.isAllowed(currentUrl)) {
                 Logger::warn("Skipping (blocked by robots.txt): " + currentUrl);
                 stats.recordRobotsBlock();
@@ -133,42 +124,93 @@ int main(int argc, char* argv[]) {
 
             Logger::info("Crawling [Depth " + std::to_string(currentDepth) + "]: " + currentUrl);
 
-            // Download the page
-            std::string htmlContent = downloader.fetchPage(currentUrl);
+            std::string htmlContent = localDownloader.fetchPage(currentUrl);
             if (htmlContent.empty()) {
                 Logger::error("Failed to download or empty page: " + currentUrl);
                 stats.recordFailure();
                 continue;
             }
 
-            // Store the page in SQLite and append to archive
             storage.storePage(currentUrl, htmlContent, currentDepth);
             stats.recordDownload(htmlContent.size());
-            Logger::info("Downloaded and stored (" + std::to_string(htmlContent.size()) + " bytes): " + currentUrl);
 
-            // If we haven't reached the max depth, extract links and add them to the frontier
             if (currentDepth < maxDepth) {
                 DynamicArray<std::string> newLinks = HTMLParser::extractLinks(htmlContent, currentUrl, "en.wikipedia.org");
                 int numLinks = newLinks.size();
-                Logger::info("Extracted " + std::to_string(numLinks) + " links from: " + currentUrl);
                 stats.recordLinksExtracted(numLinks);
 
                 for (int i = 0; i < numLinks; ++i) {
-                    // Avoid flooding the frontier with already-seen URLs
                     if (!seenStore.isSeen(newLinks[i])) {
                         frontier.push(newLinks[i], currentDepth + 1);
                     }
                 }
             }
             
-            pagesCrawled++;
-            
-            // Save frontier state to disk periodically to guarantee zero data loss with high performance
-            if (pagesCrawled % 50 == 0) {
+            int currentPages = ++pagesCrawled;
+            if (currentPages % 50 == 0) {
                 frontier.saveToFile("frontier_backup.txt");
-                Logger::debug("Frontier backup saved. Pages crawled so far: " + std::to_string(pagesCrawled));
+                Logger::debug("Frontier backup saved. Pages crawled so far: " + std::to_string(currentPages));
+            }
+            
+            // Respectful Rate Limiting: Sleep to avoid tripping bot-protection firewalls
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
+        
+        frontier.decrementWorkers();
+    };
+
+    // Helper to start workers if needed
+    auto startWorkersIfNeeded = [&]() {
+        if (workers.empty() && !frontier.isEmpty()) {
+            Logger::info("Spawning " + std::to_string(numThreads) + " worker threads for massive parallel crawling...");
+            for (int i = 0; i < numThreads; ++i) {
+                workers.emplace_back(workerTask);
             }
         }
+    };
+
+    // Start workers immediately if we have initial seeds or backup loaded
+    startWorkersIfNeeded();
+
+    // 4. Interactive Crawler Outer Loop
+    while (true) {
+        if (frontier.isFinished || (workers.empty() && frontier.isEmpty())) {
+            // Wait for any remaining threads to truly exit before prompting
+            for (auto& t : workers) {
+                if (t.joinable()) t.join();
+            }
+            workers.clear();
+
+            Logger::info("Frontier is empty. Waiting for user input...");
+            std::cout << "\nFrontier is empty. Enter a new seed URL (or type 'exit' to quit): ";
+            std::string inputUrl;
+            std::cin >> inputUrl;
+
+            if (inputUrl == "exit") {
+                break;
+            }
+
+            if (!seenStore.isSeen(inputUrl)) {
+                frontier.resetFinished();
+                frontier.push(inputUrl, 0);
+                startWorkersIfNeeded();
+            } else {
+                Logger::warn("User entered a URL that has already been crawled.");
+            }
+        } else {
+            // Sleep the main thread gently so it doesn't spin while workers are downloading
+            std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        }
+    }
+    
+    // Clean up any remaining workers when exiting
+    for (int i = 0; i < numThreads; ++i) {
+        frontier.push("", -1); // Push terminal signals
+    }
+    
+    // Clean up any remaining workers
+    for (auto& t : workers) {
+        if (t.joinable()) t.join();
     }
 
     Logger::info("Crawling Complete. Total pages crawled this session: " + std::to_string(pagesCrawled));

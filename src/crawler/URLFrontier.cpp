@@ -7,32 +7,62 @@ URLFrontier::URLFrontier() {
 }
 
 void URLFrontier::push(const std::string& url, int depth) {
-    // Create a new FrontierEntry struct
-    FrontierEntry entry = {url, depth};
-    // Append it to the back of our LinkedList queue
-    queue.append(entry);
+    std::lock_guard<std::mutex> lock(mtx);
+    queue.append({url, depth});
+    cv.notify_one();
 }
 
 FrontierEntry URLFrontier::pop() {
-    // 1. Get the entry at the very front of the queue (index 0)
+    std::unique_lock<std::mutex> lock(mtx);
+    
+    waitingWorkers++;
+    
+    // If all workers are now waiting and the queue is empty, the crawler is completely idle!
+    if (waitingWorkers == totalWorkers && queue.isEmpty()) {
+        isFinished = true;
+        cv.notify_all();
+    }
+    
+    cv.wait(lock, [this]() { return !queue.isEmpty() || isFinished; });
+    
+    waitingWorkers--;
+    
+    if (isFinished && queue.isEmpty()) {
+        return FrontierEntry{"", -1}; // Terminal signal
+    }
+    
     FrontierEntry frontEntry = queue.get(0);
-    
-    // 2. Remove that entry from the LinkedList to advance the queue
     queue.removeFirst();
-    
-    // 3. Return the copied entry to the caller
     return frontEntry;
 }
 
 bool URLFrontier::isEmpty() const {
+    std::lock_guard<std::mutex> lock(mtx);
     return queue.isEmpty();
 }
 
 int URLFrontier::size() const {
+    std::lock_guard<std::mutex> lock(mtx);
     return queue.getSize();
 }
 
+void URLFrontier::incrementWorkers() {
+    std::lock_guard<std::mutex> lock(mtx);
+    totalWorkers++;
+}
+
+void URLFrontier::decrementWorkers() {
+    std::lock_guard<std::mutex> lock(mtx);
+    totalWorkers--;
+}
+
+void URLFrontier::resetFinished() {
+    std::lock_guard<std::mutex> lock(mtx);
+    isFinished = false;
+}
+
 void URLFrontier::saveToFile(const std::string& filename) const {
+    std::lock_guard<std::mutex> lock(mtx);
     std::ofstream outFile(filename);
     if (!outFile.is_open()) {
         Logger::error("Failed to open " + filename + " for saving frontier.");
@@ -47,7 +77,6 @@ void URLFrontier::saveToFile(const std::string& filename) const {
 void URLFrontier::loadFromFile(const std::string& filename) {
     std::ifstream inFile(filename);
     if (!inFile.is_open()) {
-        // It's normal if the file doesn't exist on the first run
         return;
     }
     
@@ -55,7 +84,7 @@ void URLFrontier::loadFromFile(const std::string& filename) {
     std::string url;
     int count = 0;
     while (inFile >> depth >> url) {
-        push(url, depth);
+        push(url, depth); // push already locks internally
         count++;
     }
     inFile.close();
@@ -66,8 +95,9 @@ void URLFrontier::loadFromFile(const std::string& filename) {
 }
 
 DynamicArray<std::string> URLFrontier::getQueuedUrls() const {
-    int size = queue.getSize();
-    DynamicArray<std::string> urls(size > 0 ? size : 4);
+    std::lock_guard<std::mutex> lock(mtx);
+    int sz = queue.getSize();
+    DynamicArray<std::string> urls(sz > 0 ? sz : 4);
     for (const auto& entry : queue) {
         urls.append(entry.url);
     }

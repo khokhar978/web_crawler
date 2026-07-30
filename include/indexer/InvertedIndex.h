@@ -13,6 +13,11 @@ struct IndexPosting {
     // Default constructor needed for DynamicArray initialization
     IndexPosting() : docID(-1), frequency(0) {}
     IndexPosting(int id, int freq) : docID(id), frequency(freq) {}
+    
+    // Sort by docID ascending
+    bool operator<(const IndexPosting& other) const {
+        return docID < other.docID;
+    }
 };
 
 class InvertedIndex {
@@ -21,6 +26,10 @@ private:
     HashMap<std::string, DynamicArray<IndexPosting>> indexMap;
     mutable std::mutex indexMutex;
     int maxDocID;
+    
+    // BM25 Variables
+    DynamicArray<int> docLengths;
+    long long totalTokens;
     
 public:
     InvertedIndex();
@@ -38,15 +47,31 @@ public:
     DynamicArray<IndexPosting> search(const std::string& query) const;
     
     /**
+     * Sorts all postings by docID. Essential for multi-threaded indexing
+     * where documents may be appended out of order.
+     */
+    void sortPostings();
+    
+    /**
      * Returns the total number of unique words currently in the index.
      */
     int size() const;
     
     /**
      * Returns the highest docID seen, representing the total number of documents.
-     * Needed for TF-IDF calculations.
+     * Needed for BM25 calculations.
      */
     int getTotalDocs() const;
+    
+    /**
+     * Returns the length (total tokens) of a specific document.
+     */
+    int getDocLength(int docID) const;
+    
+    /**
+     * Returns the total number of tokens across all documents in the corpus.
+     */
+    long long getTotalTokens() const;
     
     // Persistence
     bool saveToDisk(const std::string& filepath) const;

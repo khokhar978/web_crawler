@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
     } else {
         std::cout << "No saved index found. Building Inverted Index from database...\n";
         
-        int processedCount = 0;
+        std::atomic<int> processedCount{0};
         // SQLite ROWIDs usually start at 1 and auto-increment
         int currentId = 1;
         
@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
         if (numThreads == 0) numThreads = 8;
         std::cout << "Using " << numThreads << " parallel threads for indexing...\n";
         
-        int chunkSize = 800; // Large chunk to minimize thread lifecycle overhead
+        int chunkSize = 1000; // Large chunk to minimize thread lifecycle overhead
         
         // --- DOUBLE BUFFERING PRODUCER-CONSUMER PIPELINE ---
         
@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
             
             for (int t = 0; t < numThreads; ++t) {
                 // 3. Spawn CPU worker thread
-                workers.append(std::thread([&index, &currentBatch, &next_page_idx]() {
+                workers.append(std::thread([&index, &currentBatch, &next_page_idx, &processedCount, totalPages]() {
                     while (true) {
                         // Instantly grab the next available page index
                         int p = next_page_idx.fetch_add(1, std::memory_order_relaxed);
@@ -90,6 +90,12 @@ int main(int argc, char* argv[]) {
                         Tokenizer::removeStopWords(tokens);
                         
                         index.addDocument(docId, tokens);
+                        
+                        int currentCount = processedCount.fetch_add(1, std::memory_order_relaxed) + 1;
+                        if (currentCount % 100 == 0 || currentCount == totalPages) {
+                            std::cout << "Processed " << currentCount << " / " << totalPages << " pages...\r";
+                            std::cout.flush();
+                        }
                     }
                 }));
             }
@@ -99,14 +105,6 @@ int main(int argc, char* argv[]) {
                 if (t.joinable()) {
                     t.join();
                 }
-            }
-            
-            processedCount += currentBatch.size();
-            
-            // Print progress
-            if (processedCount % 100 == 0 || processedCount >= totalPages) {
-                std::cout << "Processed " << processedCount << " / " << totalPages << " pages...\r";
-                std::cout.flush();
             }
             
             // 5. Ensure the 9th Producer Thread has finished loading nextBatch
@@ -138,7 +136,10 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        std::cout << "\nSaving Inverted Index to disk...\n";
+        std::cout << "\nSorting Inverted Index to synchronize multi-threaded docIDs...\n";
+        index.sortPostings();
+        
+        std::cout << "Saving Inverted Index to disk...\n";
         index.saveToDisk("inverted_index.dat");
     }
     
@@ -182,7 +183,7 @@ int main(int argc, char* argv[]) {
         if (isDaemon) {
             // Output JSON for the Node.js API
             std::cout << "[";
-            int displayCount = (results.size() < 10) ? results.size() : 10;
+            int displayCount = std::min((int)results.size(), 10);
             for (int i = 0; i < displayCount; ++i) {
                 std::string resultUrl = storage.getURLByID(results[i].docID);
                 std::cout << "{\"url\":\"" << resultUrl << "\",\"score\":" << results[i].score << "}";
@@ -197,8 +198,8 @@ int main(int argc, char* argv[]) {
             } else {
                 std::cout << "Found " << results.size() << " results in " << searchDiff.count() << " ms:\n";
                 
-                // Print top 5 results
-                int displayCount = (results.size() < 5) ? results.size() : 5;
+                // Print ALL results to see where Java is hiding
+                int displayCount = results.size();
                 for (int i = 0; i < displayCount; ++i) {
                     std::string resultUrl = storage.getURLByID(results[i].docID);
                     std::cout << "  " << (i + 1) << ". [Score: " << results[i].score << "] " << resultUrl << "\n";

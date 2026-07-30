@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <mutex>
 #include "HashMap.h"
 #include "DynamicArray.h"
 
@@ -18,6 +19,7 @@ private:
     // Cache: domain -> list of disallowed paths
     // Using our custom HashMap from Project 1 for O(1) lookups
     HashMap<std::string, RobotsRules> cache;
+    std::mutex mtx;
 
     // Extracts the domain (scheme + host) from a full URL
     // e.g., "https://example.com/page?q=1" -> "https://example.com"

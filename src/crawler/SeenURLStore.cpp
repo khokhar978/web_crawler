@@ -5,16 +5,16 @@ SeenURLStore::SeenURLStore() {
 }
 
 void SeenURLStore::markSeen(const std::string& url) {
-    // Insert the URL into the HashMap with a boolean 'true' to mark it as visited
+    std::lock_guard<std::mutex> lock(mtx);
     map.put(url, true);
 }
 
 bool SeenURLStore::isSeen(const std::string& url) const {
-    // Return true if the HashMap contains this URL
+    std::lock_guard<std::mutex> lock(mtx);
     return map.contains(url);
 }
 
 int SeenURLStore::size() const {
-    // Return the total number of unique URLs we have tracked
+    std::lock_guard<std::mutex> lock(mtx);
     return map.size();
 }

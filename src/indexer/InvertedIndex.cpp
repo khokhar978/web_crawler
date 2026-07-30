@@ -1,37 +1,60 @@
 #include "indexer/InvertedIndex.h"
 #include <fstream>
 #include <iostream>
+#include <cmath>
+#include <algorithm>
 
-InvertedIndex::InvertedIndex() : indexMap(1024), maxDocID(0) {
+InvertedIndex::InvertedIndex() : indexMap(1024), maxDocID(0), totalTokens(0) {
     // We initialize the HashMap with a capacity of 1024 to minimize
     // early rehashing overhead when indexing the first few documents.
 }
 
 void InvertedIndex::addDocument(int docID, const DynamicArray<std::string>& tokens) {
+    // 1. Calculate raw frequencies WITHOUT holding the global lock
+    HashMap<std::string, int> rawFreqs;
+    for (int i = 0; i < tokens.size(); ++i) {
+        if (!rawFreqs.contains(tokens[i])) {
+            rawFreqs.put(tokens[i], 1);
+        } else {
+            rawFreqs.get(tokens[i])++;
+        }
+    }
+    
+    int docLength = tokens.size();
+    DynamicArray<std::string> uniqueWords = rawFreqs.getKeys();
+    
+    // 2. Now acquire the lock to append data to the inverted index
     std::lock_guard<std::mutex> lock(indexMutex);
     
     if (docID > maxDocID) {
         maxDocID = docID;
     }
     
-    for (int i = 0; i < tokens.size(); ++i) {
-        const std::string& word = tokens[i];
-        
-        // HashMap::operator[] retrieves the value if it exists, or inserts 
-        // a default-constructed DynamicArray<IndexPosting> and returns a reference to it.
-        DynamicArray<IndexPosting>& postings = indexMap[word];
-        
-        // Since we process one document at a time sequentially, all docIDs 
-        // appended to a word's list are naturally sorted.
-        // We check the last added posting to see if we've already recorded this docID.
-        if (postings.isEmpty() || postings[postings.size() - 1].docID != docID) {
-            // First time seeing this word in this document
-            postings.append(IndexPosting(docID, 1));
-        } else {
-            // We've seen this word in this document before, just increment the frequency
-            postings[postings.size() - 1].frequency++;
-        }
+    // Expand docLengths array if necessary (since docIDs can have gaps)
+    while (docLengths.size() <= docID) {
+        docLengths.append(0);
     }
+    docLengths[docID] = docLength;
+    totalTokens += docLength;
+    
+    for (int i = 0; i < uniqueWords.size(); ++i) {
+        const std::string& word = uniqueWords[i];
+        int rawFreq = rawFreqs.get(word);
+        
+        DynamicArray<IndexPosting>& postings = indexMap[word];
+        postings.append(IndexPosting(docID, rawFreq));
+    }
+}
+
+int InvertedIndex::getDocLength(int docID) const {
+    if (docID < docLengths.size()) {
+        return docLengths[docID];
+    }
+    return 0;
+}
+
+long long InvertedIndex::getTotalTokens() const {
+    return totalTokens;
 }
 
 DynamicArray<IndexPosting> InvertedIndex::search(const std::string& query) const {
@@ -43,6 +66,17 @@ DynamicArray<IndexPosting> InvertedIndex::search(const std::string& query) const
     
     // Return an empty array if the keyword is not found anywhere
     return DynamicArray<IndexPosting>();
+}
+
+void InvertedIndex::sortPostings() {
+    std::lock_guard<std::mutex> lock(indexMutex);
+    DynamicArray<std::string> keys = indexMap.getKeys();
+    
+    for (int i = 0; i < keys.size(); ++i) {
+        DynamicArray<IndexPosting>& postings = indexMap[keys[i]];
+        // Ensure standard sort is used to re-establish strictly ascending docID order
+        std::sort(postings.begin(), postings.end());
+    }
 }
 
 int InvertedIndex::size() const {
@@ -68,7 +102,18 @@ bool InvertedIndex::saveToDisk(const std::string& filepath) const {
     // 1. Write the maxDocID
     out.write(reinterpret_cast<const char*>(&maxDocID), sizeof(int));
     
-    // 2. Write the number of keywords
+    // 2. Write the totalTokens
+    out.write(reinterpret_cast<const char*>(&totalTokens), sizeof(long long));
+    
+    // 3. Write docLengths array
+    int lengthsCount = docLengths.size();
+    out.write(reinterpret_cast<const char*>(&lengthsCount), sizeof(int));
+    for (int i = 0; i < lengthsCount; ++i) {
+        int len = docLengths[i];
+        out.write(reinterpret_cast<const char*>(&len), sizeof(int));
+    }
+    
+    // 4. Write the number of keywords
     out.write(reinterpret_cast<const char*>(&totalKeys), sizeof(int));
     
     for (int i = 0; i < totalKeys; ++i) {
@@ -111,7 +156,25 @@ bool InvertedIndex::loadFromDisk(const std::string& filepath) {
         return false;
     }
     
-    // 2. Read total keywords
+    // 2. Read totalTokens
+    if (!in.read(reinterpret_cast<char*>(&totalTokens), sizeof(long long))) {
+        return false;
+    }
+    
+    // 3. Read docLengths
+    int lengthsCount = 0;
+    if (!in.read(reinterpret_cast<char*>(&lengthsCount), sizeof(int))) {
+        return false;
+    }
+    
+    docLengths.clear();
+    for (int i = 0; i < lengthsCount; ++i) {
+        int len = 0;
+        in.read(reinterpret_cast<char*>(&len), sizeof(int));
+        docLengths.append(len);
+    }
+    
+    // 4. Read total keywords
     int totalKeys = 0;
     if (!in.read(reinterpret_cast<char*>(&totalKeys), sizeof(int))) {
         return false;
