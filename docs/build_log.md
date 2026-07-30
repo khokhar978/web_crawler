@@ -325,3 +325,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. **Node.js Microservice:** Created an Express.js API server (`web/server.js`) that uses `child_process.spawn()` to boot the C++ daemon in the background.
 4. **IPC Routing:** Node.js catches HTTP `GET /api/search?q=...` requests, pipes the query directly into the C++ process's `stdin`, catches the JSON response on `stdout`, and serves it to the web client.
 **Outcome:** Successfully built a highly scalable Microservice Architecture. The C++ index remains fully resident in RAM, executing queries in <1ms, while Node.js effortlessly handles the HTTP networking overhead.
+
+---
+
+## Session 26
+**Date:** July 30
+**Duration:** 30 minutes
+**Goal:** Build a GUI Web Interface for the Search Engine
+**Problem:** A command-line interface or raw JSON output is not user-friendly. We needed a professional, visual way to interact with the search engine without adding complex build steps or heavy frontend frameworks.
+**What I Tried:** 
+1. **Static Serving:** Updated the Express.js server to serve static assets from `web/public` via `app.use(express.static('public'))`.
+2. **Vanilla Architecture:** Built a completely static, framework-free frontend using `index.html`, `style.css`, and `script.js` to avoid Node build tools (like Webpack/Vite).
+3. **UI/UX Design:** Implemented a Google-style minimalist search bar, dynamic results rendering, and a state-of-the-art visual aesthetic featuring Dark Mode, CSS Glassmorphism, and smooth layout transitions.
+4. **Integration:** Wired `script.js` to execute an asynchronous `fetch()` to our Node.js `/api/search` endpoint and dynamically generate HTML cards for the results.
+**Outcome:** The Search Engine now has a fully functional, highly responsive, and aesthetically premium web interface. Users can search and instantly view C++ powered results natively in their browser.
