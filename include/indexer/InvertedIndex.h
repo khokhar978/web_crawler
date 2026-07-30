@@ -20,6 +20,7 @@ private:
     // Core data structure: Maps a keyword to a list of Postings (DocID + Frequency)
     HashMap<std::string, DynamicArray<IndexPosting>> indexMap;
     mutable std::mutex indexMutex;
+    int maxDocID;
     
 public:
     InvertedIndex();
@@ -40,6 +41,12 @@ public:
      * Returns the total number of unique words currently in the index.
      */
     int size() const;
+    
+    /**
+     * Returns the highest docID seen, representing the total number of documents.
+     * Needed for TF-IDF calculations.
+     */
+    int getTotalDocs() const;
     
     // Persistence
     bool saveToDisk(const std::string& filepath) const;

@@ -6,7 +6,7 @@
 // Represents a final search result ready to be displayed to the user
 struct QueryResult {
     int docID;
-    int score; // The relevance score (currently just the sum of Term Frequencies)
+    double score; // The relevance score (currently just the sum of Term Frequencies)
 };
 
 class QueryEngine {

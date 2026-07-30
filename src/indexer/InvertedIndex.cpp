@@ -2,13 +2,18 @@
 #include <fstream>
 #include <iostream>
 
-InvertedIndex::InvertedIndex() : indexMap(1024) {
+InvertedIndex::InvertedIndex() : indexMap(1024), maxDocID(0) {
     // We initialize the HashMap with a capacity of 1024 to minimize
     // early rehashing overhead when indexing the first few documents.
 }
 
 void InvertedIndex::addDocument(int docID, const DynamicArray<std::string>& tokens) {
     std::lock_guard<std::mutex> lock(indexMutex);
+    
+    if (docID > maxDocID) {
+        maxDocID = docID;
+    }
+    
     for (int i = 0; i < tokens.size(); ++i) {
         const std::string& word = tokens[i];
         
@@ -44,6 +49,10 @@ int InvertedIndex::size() const {
     return indexMap.size();
 }
 
+int InvertedIndex::getTotalDocs() const {
+    return maxDocID;
+}
+
 bool InvertedIndex::saveToDisk(const std::string& filepath) const {
     std::lock_guard<std::mutex> lock(indexMutex);
     
@@ -56,7 +65,10 @@ bool InvertedIndex::saveToDisk(const std::string& filepath) const {
     DynamicArray<std::string> keys = indexMap.getKeys();
     int totalKeys = keys.size();
     
-    // Write the number of keywords first
+    // 1. Write the maxDocID
+    out.write(reinterpret_cast<const char*>(&maxDocID), sizeof(int));
+    
+    // 2. Write the number of keywords
     out.write(reinterpret_cast<const char*>(&totalKeys), sizeof(int));
     
     for (int i = 0; i < totalKeys; ++i) {
@@ -94,6 +106,12 @@ bool InvertedIndex::loadFromDisk(const std::string& filepath) {
     
     indexMap.clear();
     
+    // 1. Read maxDocID
+    if (!in.read(reinterpret_cast<char*>(&maxDocID), sizeof(int))) {
+        return false;
+    }
+    
+    // 2. Read total keywords
     int totalKeys = 0;
     if (!in.read(reinterpret_cast<char*>(&totalKeys), sizeof(int))) {
         return false;

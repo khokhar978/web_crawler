@@ -1,5 +1,6 @@
 #include "indexer/QueryEngine.h"
 #include "indexer/Tokenizer.h"
+#include <cmath>
 
 void QueryEngine::sortResults(DynamicArray<QueryResult>& results) {
     // Simple Insertion Sort to order results by score (descending)
@@ -32,10 +33,21 @@ DynamicArray<QueryResult> QueryEngine::search(const std::string& query, const In
         return DynamicArray<QueryResult>(); // AND logic fails instantly if any word is missing
     }
     
+    // We use maxDocID as a proxy for total documents (N)
+    int totalDocs = index.getTotalDocs();
+    if (totalDocs < firstPostings.size()) totalDocs = firstPostings.size();
+    
+    // Calculate IDF for the first token
+    double firstIDF = std::log(static_cast<double>(totalDocs) / firstPostings.size());
+    
     // Convert first postings into our working result set (which includes scores)
     DynamicArray<QueryResult> currentResults;
     for (int i = 0; i < firstPostings.size(); ++i) {
-        currentResults.append({firstPostings[i].docID, firstPostings[i].frequency});
+        // Sublinear TF Scaling: 1 + log(TF) to prevent word repetition spam
+        double tfWeight = 1.0 + std::log(static_cast<double>(firstPostings[i].frequency));
+        // TF-IDF = TF_weight * IDF
+        double tfIdfScore = tfWeight * firstIDF;
+        currentResults.append({firstPostings[i].docID, tfIdfScore});
     }
     
     // 3. Intersect with postings of all subsequent tokens (AND logic)
@@ -45,16 +57,23 @@ DynamicArray<QueryResult> QueryEngine::search(const std::string& query, const In
             return DynamicArray<QueryResult>(); // AND logic fails
         }
         
+        // Calculate IDF for this token
+        double nextIDF = std::log(static_cast<double>(totalDocs) / nextPostings.size());
+        
         DynamicArray<QueryResult> intersected;
         
         // Both arrays are natively sorted by docID, allowing O(N+M) intersection
         int p1 = 0, p2 = 0;
         while (p1 < currentResults.size() && p2 < nextPostings.size()) {
             if (currentResults[p1].docID == nextPostings[p2].docID) {
-                // Match found! Sum their frequencies to create a combined TF score
+                // Match found! Sum their TF-IDF scores
+                // Sublinear TF Scaling: 1 + log(TF)
+                double tfWeight = 1.0 + std::log(static_cast<double>(nextPostings[p2].frequency));
+                double tokenTfIdf = tfWeight * nextIDF;
+                
                 intersected.append({
                     currentResults[p1].docID, 
-                    currentResults[p1].score + nextPostings[p2].frequency
+                    currentResults[p1].score + tokenTfIdf
                 });
                 p1++;
                 p2++;
