@@ -6,3 +6,4 @@ build/
 .vscode/
 docs/distributed_design.md
 docs/systems_reflection.md
+node_modules/

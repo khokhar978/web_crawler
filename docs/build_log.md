@@ -311,3 +311,17 @@ For every work session submit Date, Duration, Goal, Problem, What I Tried, and O
 3. Injected **TF-IDF Math** (`IDF = log(Total Docs / Docs With Word)`) into `QueryEngine::search()` to severely penalize common words and heavily boost rare words.
 4. Injected **Sublinear TF Scaling** (`TF_Weight = 1 + log(TF)`) to logarithmically squash runaway repetition spam in long documents.
 **Outcome:** The generic "Dinosaur" article plummeted off the rankings. The top results for "computer science" are now correctly highly-relevant tech articles (like "Association for Computing Machinery"). Relevance mathematically perfected.
+
+---
+
+## Session 25
+**Date:** July 30
+**Duration:** 45 minutes
+**Goal:** Expose the C++ Search Engine via a RESTful HTTP API
+**Problem:** To serve search results to a web frontend (like React), the C++ engine needed to handle HTTP requests. Integrating massive C++ networking libraries (like Boost.Asio or Crow) would heavily bloat the codebase and complicate the build process.
+**What I Tried:** 
+1. **Daemon Mode:** Refactored `src/indexer/main.cpp` to include a `--daemon` flag. When active, it bypasses the interactive CLI and enters a `std::getline(std::cin)` infinite loop.
+2. **JSON Serialization:** Modified the daemon to output search results strictly as a minified JSON string to `std::cout`, completely stripping human-readable formatting.
+3. **Node.js Microservice:** Created an Express.js API server (`web/server.js`) that uses `child_process.spawn()` to boot the C++ daemon in the background.
+4. **IPC Routing:** Node.js catches HTTP `GET /api/search?q=...` requests, pipes the query directly into the C++ process's `stdin`, catches the JSON response on `stdout`, and serves it to the web client.
+**Outcome:** Successfully built a highly scalable Microservice Architecture. The C++ index remains fully resident in RAM, executing queries in <1ms, while Node.js effortlessly handles the HTTP networking overhead.

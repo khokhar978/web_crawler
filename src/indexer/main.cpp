@@ -10,10 +10,14 @@
 #include <thread>
 #include <atomic>
 
-int main() {
-    std::cout << "======================================\n";
-    std::cout << "      SuperCoders Search Indexer      \n";
-    std::cout << "======================================\n\n";
+int main(int argc, char* argv[]) {
+    bool isDaemon = (argc > 1 && std::string(argv[1]) == "--daemon");
+    
+    if (!isDaemon) {
+        std::cout << "======================================\n";
+        std::cout << "      SuperCoders Search Indexer      \n";
+        std::cout << "======================================\n\n";
+    }
 
     // 1. Open Database
     std::cout << "Connecting to crawler storage (crawler.db & crawler_archive.dat)...\n";
@@ -146,18 +150,24 @@ int main() {
     std::cout << "Unique Keywords: " << index.size() << "\n";
     std::cout << "======================================\n";
     // 4. Interactive Search Engine Loop
-    std::cout << "\nWelcome to SuperCoders Search!\n";
-    std::cout << "Type a multi-word query to search (or 'exit' to quit).\n\n";
+    if (!isDaemon) {
+        std::cout << "\nWelcome to SuperCoders Search!\n";
+        std::cout << "Type a multi-word query to search (or 'exit' to quit).\n\n";
+    }
     
     std::string query;
     while (true) {
-        std::cout << "Search> ";
-        std::getline(std::cin, query);
+        if (!isDaemon) std::cout << "Search> ";
+        if (!std::getline(std::cin, query)) break; // Exit if stdin closes (e.g. Node process dies)
         
-        if (query == "exit" || query == "quit") {
+        if (!isDaemon && (query == "exit" || query == "quit")) {
             break;
         }
         if (query.empty()) {
+            if (isDaemon) {
+                std::cout << "[]\n";
+                std::cout.flush();
+            }
             continue;
         }
         
@@ -169,19 +179,32 @@ int main() {
         auto searchEnd = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::milli> searchDiff = searchEnd - searchStart;
         
-        // Display Results
-        if (results.isEmpty()) {
-            std::cout << "No matching documents found.\n\n";
-        } else {
-            std::cout << "Found " << results.size() << " results in " << searchDiff.count() << " ms:\n";
-            
-            // Print top 5 results
-            int displayCount = (results.size() < 5) ? results.size() : 5;
+        if (isDaemon) {
+            // Output JSON for the Node.js API
+            std::cout << "[";
+            int displayCount = (results.size() < 10) ? results.size() : 10;
             for (int i = 0; i < displayCount; ++i) {
                 std::string resultUrl = storage.getURLByID(results[i].docID);
-                std::cout << "  " << (i + 1) << ". [Score: " << results[i].score << "] " << resultUrl << "\n";
+                std::cout << "{\"url\":\"" << resultUrl << "\",\"score\":" << results[i].score << "}";
+                if (i < displayCount - 1) std::cout << ",";
             }
-            std::cout << "\n";
+            std::cout << "]\n";
+            std::cout.flush();
+        } else {
+            // Display Results for Human CLI
+            if (results.isEmpty()) {
+                std::cout << "No matching documents found.\n\n";
+            } else {
+                std::cout << "Found " << results.size() << " results in " << searchDiff.count() << " ms:\n";
+                
+                // Print top 5 results
+                int displayCount = (results.size() < 5) ? results.size() : 5;
+                for (int i = 0; i < displayCount; ++i) {
+                    std::string resultUrl = storage.getURLByID(results[i].docID);
+                    std::cout << "  " << (i + 1) << ". [Score: " << results[i].score << "] " << resultUrl << "\n";
+                }
+                std::cout << "\n";
+            }
         }
     }
     
