@@ -29,6 +29,8 @@ std::string HTMLTextExtractor::extractText(const std::string& html) {
     bool inTag = false;
     bool inScript = false;
     bool inStyle = false;
+    bool inTitle = false;
+    std::string titleText;
     
     for (size_t i = 0; i < html.size(); ++i) {
         char c = html[i];
@@ -59,6 +61,10 @@ std::string HTMLTextExtractor::extractText(const std::string& html) {
                 inScript = true;
             } else if (matchTag(html, i, "<style")) {
                 inStyle = true;
+            } else if (matchTag(html, i, "<title")) {
+                inTitle = true;
+            } else if (inTitle && matchTag(html, i, "</title>")) {
+                inTitle = false;
             }
             inTag = true;
             continue;
@@ -81,15 +87,24 @@ std::string HTMLTextExtractor::extractText(const std::string& html) {
             // Collapse multiple spaces/newlines into a single space
             if (!result.empty() && result.back() != ' ') {
                 result += ' ';
+                if (inTitle) titleText += ' ';
             }
         } else {
             result += c;
+            if (inTitle) titleText += c;
         }
     }
     
     // Trim trailing space if one was added at the very end
     if (!result.empty() && result.back() == ' ') {
         result.pop_back();
+    }
+    
+    // Title Boosting Algorithm: Inject title words 10 extra times
+    if (!titleText.empty()) {
+        for (int j = 0; j < 10; ++j) {
+            result += " " + titleText;
+        }
     }
     
     return result;
